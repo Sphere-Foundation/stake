@@ -6,8 +6,8 @@ use {
     bincode::serialize,
     mollusk_svm::{result::Check, Mollusk},
     solana_account::{
-        create_account_shared_data_for_test, state_traits::StateMut, AccountSharedData,
-        ReadableAccount, WritableAccount,
+        create_account_shared_data_for_test, state_traits::StateMut, Account,
+        AccountSharedData, ReadableAccount, WritableAccount,
     },
     solana_clock::{Clock, Epoch},
     solana_epoch_rewards::EpochRewards,
@@ -33,20 +33,52 @@ use {
         },
         MINIMUM_DELINQUENT_EPOCHS_FOR_DEACTIVATION,
     },
-    solana_stake_program::{get_minimum_delegation, id},
+    spherenet_stake_program::{get_minimum_delegation, id},
     solana_sysvar::{clock, epoch_rewards, epoch_schedule, rent, rewards},
     solana_sysvar_id::SysvarId,
     solana_vote_interface::state::{VoteStateV4, VoteStateVersions, MAX_EPOCH_CREDITS_HISTORY},
+    spherenet_validator_whitelist_interface::state::{
+        whitelist_entry::ValidatorWhitelistEntry, AccountState, SizeOf,
+    },
     std::{collections::HashSet, str::FromStr},
     test_case::test_case,
 };
 
 fn mollusk_bpf() -> Mollusk {
-    let mut mollusk = Mollusk::new(&id(), "solana_stake_program");
+    let mut mollusk = Mollusk::new(&id(), "spherenet_stake_program");
     mollusk
         .feature_set
         .deactivate(&stake_raise_minimum_delegation_to_1_sol::id());
     mollusk
+}
+
+fn create_default_valid_whitelist_entry_account(
+    vote_address: &Pubkey,
+) -> (Pubkey, AccountSharedData) {
+    use spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey;
+
+    let entry_pubkey = get_whitelist_entry_pubkey(vote_address).unwrap();
+
+    let data = ValidatorWhitelistEntry {
+        pubkey: vote_address.to_bytes(),
+        start_epoch: 0u64.to_le_bytes(),
+        end_epoch: u64::MAX.to_le_bytes(),
+        state: AccountState::Initialized as u8,
+    }
+    .pack();
+
+    let non_zero_rent = Rent::default();
+    let lamports = non_zero_rent.minimum_balance(<ValidatorWhitelistEntry as SizeOf>::SIZE_OF);
+
+    let account = AccountSharedData::from(Account {
+        lamports,
+        data: data.to_vec(),
+        owner: spherenet_validator_whitelist_interface::program_solana::id(),
+        executable: false,
+        rent_epoch: 0,
+    });
+
+    (entry_pubkey, account)
 }
 
 fn create_default_account() -> AccountSharedData {
@@ -406,7 +438,7 @@ fn test_stake_process_instruction() {
             &Pubkey::new_unique(),
             &invalid_vote_state_pubkey(),
         ),
-        Err(ProgramError::InvalidAccountData),
+        Err(ProgramError::Custom(2863311387)),
     );
     process_instruction_as_one_arg(
         &mollusk,
@@ -449,7 +481,7 @@ fn test_stake_process_instruction() {
             &invalid_vote_state_pubkey(),
             &Pubkey::new_unique(),
         ),
-        Err(ProgramError::InvalidAccountData),
+        Err(ProgramError::IncorrectProgramId),
     );
     process_instruction_as_one_arg(
         &mollusk,
@@ -498,10 +530,8 @@ fn test_stake_process_instruction_decode_bail() {
     let vote_account = AccountSharedData::new(0, 0, &solana_sdk_ids::vote::id());
     let clock_address = clock::id();
     let clock_account = create_account_shared_data_for_test(&clock::Clock::default());
-    #[allow(deprecated)]
-    let config_address = stake_config::id();
-    #[allow(deprecated)]
-    let config_account = config::create_account(0, &stake_config::Config::default());
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     let rent_exempt_reserve = rent.minimum_balance(StakeStateV2::size_of());
     let minimum_delegation = crate::get_minimum_delegation();
     let withdrawal_amount = rent_exempt_reserve + minimum_delegation;
@@ -573,6 +603,7 @@ fn test_stake_process_instruction_decode_bail() {
     );
 
     // gets the check non-deserialize-able account in delegate_stake
+    // NOTE: Stake account is bad, so it fails at deserialization (before whitelist validation)
     process_instruction(
         &mollusk,
         &serialize(&StakeInstruction::DelegateStake).unwrap(),
@@ -581,7 +612,7 @@ fn test_stake_process_instruction_decode_bail() {
             (vote_address, vote_account.clone()),
             (clock_address, clock_account),
             (stake_history_address, stake_history_account.clone()),
-            (config_address, config_account),
+            (whitelist_entry_address, whitelist_entry_account),
         ],
         vec![
             AccountMeta {
@@ -605,7 +636,7 @@ fn test_stake_process_instruction_decode_bail() {
                 is_writable: false,
             },
             AccountMeta {
-                pubkey: config_address,
+                pubkey: whitelist_entry_address,
                 is_signer: false,
                 is_writable: false,
             },
@@ -1583,6 +1614,10 @@ fn test_authorize_delegated_stake() {
     let vote_account = create_default_vote_account();
     let vote_address_2 = solana_pubkey::new_rand();
     let vote_account_2 = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
+    let (whitelist_entry_address_2, whitelist_entry_account_2) =
+        create_default_valid_whitelist_entry_account(&vote_address_2);
     #[allow(deprecated)]
     let mut transaction_accounts = vec![
         (stake_address, stake_account),
@@ -1600,10 +1635,8 @@ fn test_authorize_delegated_stake() {
             StakeHistory::id(),
             create_account_shared_data_for_test(&StakeHistory::default()),
         ),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
+        (whitelist_entry_address_2, whitelist_entry_account_2),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -1632,7 +1665,7 @@ fn test_authorize_delegated_stake() {
             is_writable: false,
         },
         AccountMeta {
-            pubkey: stake_config::id(),
+            pubkey: whitelist_entry_address,
             is_signer: false,
             is_writable: false,
         },
@@ -1706,6 +1739,7 @@ fn test_authorize_delegated_stake() {
     // Random other account should fail
     instruction_accounts[0].is_signer = false;
     instruction_accounts[1].pubkey = vote_address_2;
+    instruction_accounts[4].pubkey = whitelist_entry_address_2;
     process_instruction(
         &mollusk,
         &serialize(&StakeInstruction::DelegateStake).unwrap(),
@@ -1799,6 +1833,10 @@ fn test_stake_delegate() {
         epoch: 1,
         ..Clock::default()
     };
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
+    let (whitelist_entry_address_2, whitelist_entry_account_2) =
+        create_default_valid_whitelist_entry_account(&vote_address_2);
     #[allow(deprecated)]
     let mut transaction_accounts = vec![
         (stake_address, stake_account.clone()),
@@ -1806,10 +1844,8 @@ fn test_stake_delegate() {
         (vote_address_2, vote_account_2.clone()),
         (clock::id(), create_account_shared_data_for_test(&clock)),
         (StakeHistory::id(), create_empty_stake_history_for_test()),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
+        (whitelist_entry_address_2, whitelist_entry_account_2),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -1838,7 +1874,7 @@ fn test_stake_delegate() {
             is_writable: false,
         },
         AccountMeta {
-            pubkey: stake_config::id(),
+            pubkey: whitelist_entry_address,
             is_signer: false,
             is_writable: false,
         },
@@ -1914,6 +1950,7 @@ fn test_stake_delegate() {
     // during deactivation
     transaction_accounts[0] = (stake_address, accounts[0].clone());
     instruction_accounts[1].pubkey = vote_address_2;
+    instruction_accounts[4].pubkey = whitelist_entry_address_2;
     process_instruction(
         &mollusk,
         &serialize(&StakeInstruction::DelegateStake).unwrap(),
@@ -1922,6 +1959,7 @@ fn test_stake_delegate() {
         Err(StakeError::TooSoonToRedelegate.into()),
     );
     instruction_accounts[1].pubkey = vote_address;
+    instruction_accounts[4].pubkey = whitelist_entry_address;
 
     // verify that delegate succeeds to same vote account
     // when stake is deactivating
@@ -1940,6 +1978,7 @@ fn test_stake_delegate() {
     // if stake is still active
     transaction_accounts[0] = (stake_address, accounts_2[0].clone());
     instruction_accounts[1].pubkey = vote_address_2;
+    instruction_accounts[4].pubkey = whitelist_entry_address_2;
     process_instruction(
         &mollusk,
         &serialize(&StakeInstruction::DelegateStake).unwrap(),
@@ -1962,6 +2001,7 @@ fn test_stake_delegate() {
         Ok(()),
     );
     instruction_accounts[1].pubkey = vote_address;
+    instruction_accounts[4].pubkey = whitelist_entry_address;
     // verify that delegate() looks right, compare against hand-rolled
     assert_eq!(
         stake_from(&accounts[0]).unwrap(),
@@ -2016,6 +2056,8 @@ fn test_redelegate_consider_balance_changes() {
     let authority_address = solana_pubkey::new_rand();
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     let stake_address = solana_pubkey::new_rand();
     let stake_account = AccountSharedData::new_data_with_space(
         stake_lamports,
@@ -2038,10 +2080,7 @@ fn test_redelegate_consider_balance_changes() {
         (authority_address, AccountSharedData::default()),
         (clock::id(), create_account_shared_data_for_test(&clock)),
         (StakeHistory::id(), create_empty_stake_history_for_test()),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -2070,7 +2109,7 @@ fn test_redelegate_consider_balance_changes() {
             is_writable: false,
         },
         AccountMeta {
-            pubkey: stake_config::id(),
+            pubkey: whitelist_entry_address,
             is_signer: false,
             is_writable: false,
         },
@@ -2357,6 +2396,8 @@ fn test_withdraw_stake() {
     .unwrap();
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     #[allow(deprecated)]
     let mut transaction_accounts = vec![
         (stake_address, stake_account),
@@ -2379,10 +2420,7 @@ fn test_withdraw_stake() {
             StakeHistory::id(),
             create_account_shared_data_for_test(&StakeHistory::default()),
         ),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -2516,7 +2554,7 @@ fn test_withdraw_stake() {
                 is_writable: false,
             },
             AccountMeta {
-                pubkey: stake_config::id(),
+                pubkey: whitelist_entry_address,
                 is_signer: false,
                 is_writable: false,
             },
@@ -2658,6 +2696,8 @@ fn test_withdraw_stake_before_warmup() {
     .unwrap();
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     let mut clock = Clock {
         epoch: 16,
         ..Clock::default()
@@ -2672,10 +2712,7 @@ fn test_withdraw_stake_before_warmup() {
             StakeHistory::id(),
             create_account_shared_data_for_test(&StakeHistory::default()),
         ),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -2737,7 +2774,7 @@ fn test_withdraw_stake_before_warmup() {
                 is_writable: false,
             },
             AccountMeta {
-                pubkey: stake_config::id(),
+                pubkey: whitelist_entry_address,
                 is_signer: false,
                 is_writable: false,
             },
@@ -3009,6 +3046,8 @@ fn test_deactivate() {
     .unwrap();
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     #[allow(deprecated)]
     let mut transaction_accounts = vec![
         (stake_address, stake_account),
@@ -3021,10 +3060,7 @@ fn test_deactivate() {
             StakeHistory::id(),
             create_account_shared_data_for_test(&StakeHistory::default()),
         ),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -3091,7 +3127,7 @@ fn test_deactivate() {
                 is_writable: false,
             },
             AccountMeta {
-                pubkey: stake_config::id(),
+                pubkey: whitelist_entry_address,
                 is_signer: false,
                 is_writable: false,
             },
@@ -3138,6 +3174,8 @@ fn test_set_lockup() {
     .unwrap();
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     let instruction_data = serialize(&StakeInstruction::SetLockup(LockupArgs {
         unix_timestamp: Some(1),
         epoch: Some(1),
@@ -3162,10 +3200,7 @@ fn test_set_lockup() {
             StakeHistory::id(),
             create_account_shared_data_for_test(&StakeHistory::default()),
         ),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -3276,7 +3311,7 @@ fn test_set_lockup() {
                 is_writable: false,
             },
             AccountMeta {
-                pubkey: stake_config::id(),
+                pubkey: whitelist_entry_address,
                 is_signer: false,
                 is_writable: false,
             },
@@ -3477,6 +3512,8 @@ fn test_delegate_minimum_stake_delegation() {
     };
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     #[allow(deprecated)]
     let instruction_accounts = vec![
         AccountMeta {
@@ -3500,7 +3537,7 @@ fn test_delegate_minimum_stake_delegation() {
             is_writable: false,
         },
         AccountMeta {
-            pubkey: stake_config::id(),
+            pubkey: whitelist_entry_address,
             is_signer: false,
             is_writable: false,
         },
@@ -3538,10 +3575,7 @@ fn test_delegate_minimum_stake_delegation() {
                         StakeHistory::id(),
                         create_account_shared_data_for_test(&StakeHistory::default()),
                     ),
-                    (
-                        stake_config::id(),
-                        config::create_account(0, &stake_config::Config::default()),
-                    ),
+                    (whitelist_entry_address, whitelist_entry_account.clone()),
                     (
                         epoch_schedule::id(),
                         create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -4163,6 +4197,8 @@ fn test_behavior_withdrawal_then_redelegate_with_less_than_minimum_stake_delegat
     );
     let vote_address = solana_pubkey::new_rand();
     let vote_account = create_default_vote_account();
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
     let recipient_address = solana_pubkey::new_rand();
     let mut clock = Clock::default();
     #[allow(deprecated)]
@@ -4175,10 +4211,7 @@ fn test_behavior_withdrawal_then_redelegate_with_less_than_minimum_stake_delegat
         ),
         (clock::id(), create_account_shared_data_for_test(&clock)),
         (StakeHistory::id(), create_empty_stake_history_for_test()),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
         (
             epoch_schedule::id(),
             create_account_shared_data_for_test(&EpochSchedule::default()),
@@ -4208,7 +4241,7 @@ fn test_behavior_withdrawal_then_redelegate_with_less_than_minimum_stake_delegat
             is_writable: false,
         },
         AccountMeta {
-            pubkey: stake_config::id(),
+            pubkey: whitelist_entry_address,
             is_signer: false,
             is_writable: false,
         },
@@ -7092,6 +7125,9 @@ fn setup_delegate_test_with_vote_account(
     )
     .unwrap();
 
+    let (whitelist_entry_address, whitelist_entry_account) =
+        create_default_valid_whitelist_entry_account(&vote_address);
+
     let clock = Clock {
         epoch: 1,
         ..Clock::default()
@@ -7103,10 +7139,7 @@ fn setup_delegate_test_with_vote_account(
         (vote_address, vote_account),
         (clock::id(), create_account_shared_data_for_test(&clock)),
         (StakeHistory::id(), create_empty_stake_history_for_test()),
-        (
-            stake_config::id(),
-            config::create_account(0, &stake_config::Config::default()),
-        ),
+        (whitelist_entry_address, whitelist_entry_account),
     ];
 
     #[allow(deprecated)]
@@ -7132,7 +7165,7 @@ fn setup_delegate_test_with_vote_account(
             is_writable: false,
         },
         AccountMeta {
-            pubkey: stake_config::id(),
+            pubkey: whitelist_entry_address,
             is_signer: false,
             is_writable: false,
         },
@@ -7238,7 +7271,7 @@ fn test_delegate_incorrect_vote_owner() {
         &serialize(&StakeInstruction::DelegateStake).unwrap(),
         transaction_accounts,
         instruction_accounts,
-        Err(ProgramError::IncorrectProgramId), // <-- Always throws
+        Err(ProgramError::IncorrectProgramId), // Vote account owner check
     );
 }
 

@@ -1,9 +1,9 @@
 [package]
-name = "solana-stake-program"
+name = "spherenet-stake-program"
 version = "4.0.0"
-description = "Solana BPF Stake Program"
-authors = ["Anza Maintainers <maintainers@anza.xyz>"]
-repository = "https://github.com/solana-program/stake-program"
+description = "SphereNet BPF Stake Program with Validator Whitelist"
+authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
+repository = "https://github.com/spherenet/stake-program"
 license = "Apache-2.0"
 edition = "2021"
 
@@ -23,6 +23,16 @@ solana-stake-interface = { version = "2", features = ["bincode", "borsh", "sysva
 solana-sysvar = "3.0.0"
 solana-sysvar-id = "3.0.0"
 solana-vote-interface = { version = "4.0.4", features = ["bincode"] }
+serde = "1.0"
+solana-sdk-ids = "3.0.0"
+spherenet-validator-whitelist-interface = "0.2.0"
+
+# Optional dependencies for helpers feature
+solana-genesis-config = { version = "3.0.0", optional = true }
+solana-account = { version = "3.2.0", optional = true, features = ["bincode"] }
+solana-keypair = { version = "3.0.0", optional = true }
+solana-signer = { version = "3.0.0", optional = true }
+solana-instruction = { version = "3.0.0", optional = true }
 
 [dev-dependencies]
 agave-feature-set = "3.0.0"
@@ -49,6 +59,16 @@ test-case = "3.3.1"
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+helpers = [
+    "solana-genesis-config",
+    "solana-account",
+    "solana-keypair",
+    "solana-signer",
+    "solana-instruction"
+]
 
 [lints]
 workspace = true
