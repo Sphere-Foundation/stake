@@ -1,234 +1,2068 @@
-From ac65294787e23d7ba327ae7f8e6b33d1729613be Mon Sep 17 00:00:00 2001
-From: hana <81144685+2501babe@users.noreply.github.com>
-Date: Thu, 5 Feb 2026 11:05:13 -0800
-Subject: [PATCH] enable 1 sol minimum delegation (#240)
+From 3bef1ae510321a38802e7087bf16fcca479dfa9d Mon Sep 17 00:00:00 2001
+From: solarpx <solarpx@protonmail.com>
+Date: Fri, 6 Feb 2026 14:29:43 -0600
+Subject: [PATCH] feat: impl patchfile
 
 ---
- program/src/lib.rs                 | 18 +--------
- program/tests/program_test.rs      | 10 ++---
- program/tests/stake_instruction.rs | 60 +++++++++++++++---------------
- 3 files changed, 36 insertions(+), 52 deletions(-)
+ Cargo.lock                            | 403 ++++++++++++++++++--------
+ Cargo.toml                            |   9 +-
+ clients/rust/Cargo.toml               |  14 +-
+ interface/Cargo.toml                  |   9 +-
+ interface/src/sysvar/stake_history.rs |   2 +-
+ program/Cargo.toml                    |  38 ++-
+ program/src/helpers/delegate.rs       |   2 +-
+ program/src/helpers/genesis.rs        |  83 ++++++
+ program/src/helpers/merge.rs          |   4 +-
+ program/src/helpers/mod.rs            |   4 +
+ program/src/instruction_builders.rs   |  95 ++++++
+ program/src/lib.rs                    |  30 +-
+ program/src/processor.rs              | 125 +++++++-
+ program/tests/interface.rs            |  70 ++++-
+ program/tests/program_test.rs         |  79 ++++-
+ program/tests/stake_instruction.rs    | 163 ++++++-----
+ 16 files changed, 893 insertions(+), 237 deletions(-)
+ create mode 100644 program/src/helpers/genesis.rs
+ create mode 100644 program/src/instruction_builders.rs
 
+diff --git a/Cargo.lock b/Cargo.lock
+index eac2716..ef59632 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -143,7 +143,7 @@ dependencies = [
+  "solana-secp256k1-recover",
+  "solana-sha256-hasher",
+  "solana-stable-layout",
+- "solana-stake-interface 2.0.1",
++ "solana-stake-interface",
+  "solana-svm-callback",
+  "solana-svm-feature-set",
+  "solana-svm-log-collector",
+@@ -749,18 +749,18 @@ dependencies = [
+ 
+ [[package]]
+ name = "bytemuck"
+-version = "1.23.2"
++version = "1.25.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "3995eaeebcdf32f91f980d360f78732ddc061097ab4e39991ae7a6ace9194677"
++checksum = "c8efb64bd706a16a1bdde310ae86b351e4d21550d98d056f22f8a7f7a2183fec"
+ dependencies = [
+  "bytemuck_derive",
+ ]
+ 
+ [[package]]
+ name = "bytemuck_derive"
+-version = "1.10.1"
++version = "1.10.2"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "4f154e572231cb6ba2bd1176980827e3d5dc04cc183a75dea38109fbdd672d29"
++checksum = "f9abbd1bc6865053c427f7198e6af43bfdedc55ab791faed4fbd361d789575ff"
+ dependencies = [
+  "proc-macro2",
+  "quote",
+@@ -1784,9 +1784,9 @@ dependencies = [
+ 
+ [[package]]
+ name = "five8_const"
+-version = "0.1.3"
++version = "0.1.4"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "72b4f62f0f8ca357f93ae90c8c2dd1041a1f665fde2f889ea9b1787903829015"
++checksum = "26dec3da8bc3ef08f2c04f61eab298c3ab334523e55f076354d6d6f613799a7b"
+ dependencies = [
+  "five8_core",
+ ]
+@@ -2968,8 +2968,8 @@ dependencies = [
+  "solana-rent",
+  "solana-sdk-ids",
+  "solana-slot-hashes",
+- "solana-stake-interface 2.0.1",
+- "solana-stake-program 3.0.10",
++ "solana-stake-interface",
++ "solana-stake-program",
+  "solana-svm-callback",
+  "solana-svm-log-collector",
+  "solana-svm-timings",
+@@ -3400,6 +3400,43 @@ version = "0.1.0"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
+ 
++[[package]]
++name = "pinocchio"
++version = "0.9.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5b971851087bc3699b001954ad02389d50c41405ece3548cbcafc88b3e20017a"
++
++[[package]]
++name = "pinocchio-log"
++version = "0.4.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f89f8ffd986174cefe59448295a004aaf70c3605f30de066f42d27b06188f267"
++dependencies = [
++ "pinocchio-log-macro",
++]
++
++[[package]]
++name = "pinocchio-log-macro"
++version = "0.4.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6edac6ac2c9c456b850d3e908b7f224a54623f6c5b75906b9e48a4e248fb332b"
++dependencies = [
++ "quote",
++ "regex",
++ "syn 1.0.109",
++]
++
++[[package]]
++name = "pinocchio-pubkey"
++version = "0.3.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cb0225638cadcbebae8932cb7f49cb5da7c15c21beb19f048f05a5ca7d93f065"
++dependencies = [
++ "five8_const",
++ "pinocchio",
++ "sha2-const-stable",
++]
++
+ [[package]]
+ name = "pkcs8"
+ version = "0.10.2"
+@@ -4422,6 +4459,12 @@ dependencies = [
+  "digest 0.10.7",
+ ]
+ 
++[[package]]
++name = "sha2-const-stable"
++version = "0.1.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "5f179d4e11094a893b82fff208f74d448a7512f99f5a0acbd5c679b705f83ed9"
++
+ [[package]]
+ name = "sha3"
+ version = "0.10.8"
+@@ -4432,6 +4475,52 @@ dependencies = [
+  "keccak",
+ ]
+ 
++[[package]]
++name = "shank"
++version = "0.4.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "ae936f51a1ab23dd7f8a81b0b13ab4af3fc71f1c56438a07cb54a0f7eb5436fd"
++dependencies = [
++ "shank_macro",
++]
++
++[[package]]
++name = "shank_macro"
++version = "0.4.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "db4463f65133e69fe6c69d5c30e9cc6d2bde50e0fac61db1c2fb6a43fc499b67"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "shank_macro_impl",
++ "shank_render",
++ "syn 1.0.109",
++]
++
++[[package]]
++name = "shank_macro_impl"
++version = "0.4.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "d7c08958b4ba24f8289481c0d8b377c63a8205fc037b59fc80643c491ec1f487"
++dependencies = [
++ "anyhow",
++ "proc-macro2",
++ "quote",
++ "serde",
++ "syn 1.0.109",
++]
++
++[[package]]
++name = "shank_render"
++version = "0.4.6"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "4ed873b8e62792442e944dc94c4ebbfab63e5c46eac09b7dcf3a2e274dde1524"
++dependencies = [
++ "proc-macro2",
++ "quote",
++ "shank_macro_impl",
++]
++
+ [[package]]
+ name = "sharded-slab"
+ version = "0.1.7"
+@@ -4898,7 +4987,7 @@ dependencies = [
+  "solana-program-runtime",
+  "solana-pubkey",
+  "solana-sdk-ids",
+- "solana-stake-program 3.0.10",
++ "solana-stake-program",
+  "solana-system-program",
+  "solana-vote-program",
+  "solana-zk-elgamal-proof-program",
+@@ -4919,7 +5008,7 @@ dependencies = [
+  "solana-loader-v4-program",
+  "solana-pubkey",
+  "solana-sdk-ids",
+- "solana-stake-program 3.0.10",
++ "solana-stake-program",
+  "solana-system-program",
+  "solana-vote-program",
+ ]
+@@ -5249,6 +5338,16 @@ dependencies = [
+  "solana-sysvar-id",
+ ]
+ 
++[[package]]
++name = "solana-epoch-stake"
++version = "3.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "fcc6693d0ea833b880514b9b88d95afb80b42762dca98b0712465d1fcbbcb89e"
++dependencies = [
++ "solana-define-syscall",
++ "solana-pubkey",
++]
++
+ [[package]]
+ name = "solana-example-mocks"
+ version = "3.0.0"
+@@ -5784,6 +5883,53 @@ dependencies = [
+  "num-traits",
+ ]
+ 
++[[package]]
++name = "solana-program"
++version = "3.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "91b12305dd81045d705f427acd0435a2e46444b65367d7179d7bdcfc3bc5f5eb"
++dependencies = [
++ "memoffset",
++ "solana-account-info",
++ "solana-big-mod-exp",
++ "solana-blake3-hasher",
++ "solana-borsh",
++ "solana-clock",
++ "solana-cpi",
++ "solana-define-syscall",
++ "solana-epoch-rewards",
++ "solana-epoch-schedule",
++ "solana-epoch-stake",
++ "solana-example-mocks",
++ "solana-fee-calculator",
++ "solana-hash 3.1.0",
++ "solana-instruction",
++ "solana-instruction-error",
++ "solana-instructions-sysvar",
++ "solana-keccak-hasher",
++ "solana-last-restart-slot",
++ "solana-msg",
++ "solana-native-token",
++ "solana-program-entrypoint",
++ "solana-program-error",
++ "solana-program-memory",
++ "solana-program-option",
++ "solana-program-pack",
++ "solana-pubkey",
++ "solana-rent",
++ "solana-sdk-ids",
++ "solana-secp256k1-recover",
++ "solana-serde-varint",
++ "solana-serialize-utils",
++ "solana-sha256-hasher",
++ "solana-short-vec",
++ "solana-slot-hashes",
++ "solana-slot-history",
++ "solana-stable-layout",
++ "solana-sysvar",
++ "solana-sysvar-id",
++]
++
+ [[package]]
+ name = "solana-program-entrypoint"
+ version = "3.1.0"
+@@ -5804,6 +5950,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "a1af32c995a7b692a915bb7414d5f8e838450cf7c70414e763d8abcae7b51f28"
+ dependencies = [
+  "borsh",
++ "serde",
++ "serde_derive",
+ ]
+ 
+ [[package]]
+@@ -5815,6 +5963,12 @@ dependencies = [
+  "solana-define-syscall",
+ ]
+ 
++[[package]]
++name = "solana-program-option"
++version = "3.0.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "8e7b4ddb464f274deb4a497712664c3b612e3f5f82471d4e47710fc4ab1c3095"
++
+ [[package]]
+ name = "solana-program-pack"
+ version = "3.0.0"
+@@ -5851,7 +6005,7 @@ dependencies = [
+  "solana-sbpf",
+  "solana-sdk-ids",
+  "solana-slot-hashes",
+- "solana-stake-interface 2.0.1",
++ "solana-stake-interface",
+  "solana-svm-callback",
+  "solana-svm-feature-set",
+  "solana-svm-log-collector",
+@@ -5913,7 +6067,7 @@ dependencies = [
+  "solana-sdk-ids",
+  "solana-signer",
+  "solana-stable-layout",
+- "solana-stake-interface 2.0.1",
++ "solana-stake-interface",
+  "solana-svm",
+  "solana-svm-log-collector",
+  "solana-svm-timings",
+@@ -6247,8 +6401,8 @@ dependencies = [
+  "solana-signer",
+  "solana-slot-hashes",
+  "solana-slot-history",
+- "solana-stake-interface 2.0.1",
+- "solana-stake-program 3.0.10",
++ "solana-stake-interface",
++ "solana-stake-program",
+  "solana-svm",
+  "solana-svm-callback",
+  "solana-svm-timings",
+@@ -6550,31 +6704,12 @@ dependencies = [
+  "solana-pubkey",
+ ]
+ 
+-[[package]]
+-name = "solana-stake-client"
+-version = "0.0.0"
+-dependencies = [
+- "assert_matches",
+- "borsh",
+- "num-derive",
+- "num-traits",
+- "serde",
+- "serde_with",
+- "solana-account-info",
+- "solana-cpi",
+- "solana-instruction",
+- "solana-program-error",
+- "solana-pubkey",
+- "thiserror 2.0.18",
+-]
+-
+ [[package]]
+ name = "solana-stake-interface"
+ version = "2.0.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "f6f912ae679b683365348dea482dbd9468d22ff258b554fd36e3d3683c2122e3"
+ dependencies = [
+- "borsh",
+  "num-traits",
+  "serde",
+  "serde_derive",
+@@ -6588,42 +6723,6 @@ dependencies = [
+  "solana-sysvar-id",
+ ]
+ 
+-[[package]]
+-name = "solana-stake-interface"
+-version = "2.0.2"
+-dependencies = [
+- "anyhow",
+- "assert_matches",
+- "bincode",
+- "borsh",
+- "codama",
+- "codama-macros",
+- "num-traits",
+- "serde",
+- "serde_derive",
+- "serde_json",
+- "serial_test",
+- "solana-account",
+- "solana-borsh",
+- "solana-clock",
+- "solana-cpi",
+- "solana-example-mocks",
+- "solana-frozen-abi",
+- "solana-frozen-abi-macro",
+- "solana-instruction",
+- "solana-program-error",
+- "solana-pubkey",
+- "solana-sdk-ids",
+- "solana-stake-interface 2.0.2",
+- "solana-system-interface",
+- "solana-sysvar",
+- "solana-sysvar-id",
+- "static_assertions",
+- "strum 0.27.2",
+- "strum_macros 0.27.2",
+- "test-case",
+-]
+-
+ [[package]]
+ name = "solana-stake-program"
+ version = "3.0.10"
+@@ -6645,7 +6744,7 @@ dependencies = [
+  "solana-pubkey",
+  "solana-rent",
+  "solana-sdk-ids",
+- "solana-stake-interface 2.0.1",
++ "solana-stake-interface",
+  "solana-svm-log-collector",
+  "solana-svm-type-overrides",
+  "solana-sysvar",
+@@ -6653,48 +6752,6 @@ dependencies = [
+  "solana-vote-interface 3.0.0",
+ ]
+ 
+-[[package]]
+-name = "solana-stake-program"
+-version = "4.0.0"
+-dependencies = [
+- "agave-feature-set",
+- "arbitrary",
+- "assert_matches",
+- "bincode",
+- "mollusk-svm",
+- "proptest",
+- "rand 0.9.2",
+- "solana-account",
+- "solana-account-info",
+- "solana-clock",
+- "solana-config-interface",
+- "solana-cpi",
+- "solana-epoch-rewards",
+- "solana-epoch-schedule",
+- "solana-instruction",
+- "solana-instruction-error",
+- "solana-keypair",
+- "solana-logger",
+- "solana-msg",
+- "solana-native-token",
+- "solana-program-entrypoint",
+- "solana-program-error",
+- "solana-program-test",
+- "solana-pubkey",
+- "solana-rent",
+- "solana-sdk-ids",
+- "solana-signature",
+- "solana-signer",
+- "solana-stake-interface 2.0.1",
+- "solana-svm-log-collector",
+- "solana-system-interface",
+- "solana-sysvar",
+- "solana-sysvar-id",
+- "solana-transaction",
+- "solana-vote-interface 4.0.4",
+- "test-case",
+-]
+-
+ [[package]]
+ name = "solana-streamer"
+ version = "3.0.10"
+@@ -6920,6 +6977,8 @@ checksum = "63205e68d680bcc315337dec311b616ab32fea0a612db3b883ce4de02e0953f9"
+ dependencies = [
+  "base64 0.22.1",
+  "bincode",
++ "bytemuck",
++ "bytemuck_derive",
+  "lazy_static",
+  "serde",
+  "serde_derive",
+@@ -7394,6 +7453,124 @@ dependencies = [
+  "zeroize",
+ ]
+ 
++[[package]]
++name = "spherenet-stake-client"
++version = "0.2.0"
++dependencies = [
++ "assert_matches",
++ "borsh",
++ "num-derive",
++ "num-traits",
++ "serde",
++ "serde_with",
++ "solana-account-info",
++ "solana-cpi",
++ "solana-instruction",
++ "solana-program-error",
++ "solana-pubkey",
++ "thiserror 2.0.18",
++]
++
++[[package]]
++name = "spherenet-stake-interface"
++version = "0.2.0"
++dependencies = [
++ "anyhow",
++ "assert_matches",
++ "bincode",
++ "borsh",
++ "codama",
++ "codama-macros",
++ "num-traits",
++ "serde",
++ "serde_derive",
++ "serde_json",
++ "serial_test",
++ "solana-account",
++ "solana-borsh",
++ "solana-clock",
++ "solana-cpi",
++ "solana-example-mocks",
++ "solana-frozen-abi",
++ "solana-frozen-abi-macro",
++ "solana-instruction",
++ "solana-program-error",
++ "solana-pubkey",
++ "solana-sdk-ids",
++ "solana-system-interface",
++ "solana-sysvar",
++ "solana-sysvar-id",
++ "spherenet-stake-interface",
++ "static_assertions",
++ "strum 0.27.2",
++ "strum_macros 0.27.2",
++ "test-case",
++]
++
++[[package]]
++name = "spherenet-stake-program"
++version = "0.2.0"
++dependencies = [
++ "agave-feature-set",
++ "arbitrary",
++ "assert_matches",
++ "bincode",
++ "mollusk-svm",
++ "proptest",
++ "rand 0.9.2",
++ "serde",
++ "solana-account",
++ "solana-account-info",
++ "solana-clock",
++ "solana-config-interface",
++ "solana-cpi",
++ "solana-epoch-rewards",
++ "solana-epoch-schedule",
++ "solana-genesis-config",
++ "solana-instruction",
++ "solana-instruction-error",
++ "solana-keypair",
++ "solana-logger",
++ "solana-msg",
++ "solana-native-token",
++ "solana-program-entrypoint",
++ "solana-program-error",
++ "solana-program-test",
++ "solana-pubkey",
++ "solana-rent",
++ "solana-sdk-ids",
++ "solana-signature",
++ "solana-signer",
++ "solana-stake-interface",
++ "solana-svm-log-collector",
++ "solana-system-interface",
++ "solana-sysvar",
++ "solana-sysvar-id",
++ "solana-transaction",
++ "solana-vote-interface 4.0.4",
++ "spherenet-stake-interface",
++ "spherenet-validator-whitelist-interface",
++ "test-case",
++]
++
++[[package]]
++name = "spherenet-validator-whitelist-interface"
++version = "0.2.0"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "24915dbf6de66ed70e00ba9d6b055825f4f956141c3c8cb84bbfa81d00f36e4a"
++dependencies = [
++ "bs58",
++ "bytemuck",
++ "pinocchio",
++ "pinocchio-log",
++ "pinocchio-pubkey",
++ "shank",
++ "solana-instruction",
++ "solana-program",
++ "solana-pubkey",
++ "thiserror 2.0.18",
++]
++
+ [[package]]
+ name = "spinning_top"
+ version = "0.3.0"
+diff --git a/Cargo.toml b/Cargo.toml
+index ac4fc77..2f63d41 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -7,12 +7,17 @@ members = [
+ ]
+ 
+ [workspace.package]
+-authors = ["Anza Maintainers <maintainers@anza.xyz>"]
+-repository = "https://github.com/solana-program/stake"
++version = "0.2.0"
++authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
++repository = "https://github.com/Sphere-Foundation/stake"
+ homepage = "https://anza.xyz/"
+ license = "Apache-2.0"
+ edition = "2021"
+ 
++[workspace.dependencies]
++# Internal dependencies
++spherenet-stake-interface = { version = "^0", path = "interface" }
++
+ [workspace.metadata.cli]
+ solana = "3.0.0"
+ 
+diff --git a/clients/rust/Cargo.toml b/clients/rust/Cargo.toml
+index 0748c6f..4f08bbc 100644
+--- a/clients/rust/Cargo.toml
++++ b/clients/rust/Cargo.toml
+@@ -1,11 +1,13 @@
+ [package]
+-name = "solana-stake-client"
+-version = "0.0.0"
+-description = "A generated Rust library for the Stake program"
+-repository = "https://github.com/solana-program/stake"
+-edition = "2021"
++name = "spherenet-stake-client"
++version = { workspace = true }
++description = "A generated Rust library for the SphereNet Stake program with Validator Whitelist"
++authors = { workspace = true }
++repository = { workspace = true }
++edition = { workspace = true }
+ readme = "README.md"
+-license-file = "../../LICENSE"
++license = { workspace = true }
++publish = true
+ 
+ [features]
+ serde = ["dep:serde", "dep:serde_with"]
+diff --git a/interface/Cargo.toml b/interface/Cargo.toml
+index 76a88ed..d97dcb9 100644
+--- a/interface/Cargo.toml
++++ b/interface/Cargo.toml
+@@ -1,7 +1,7 @@
+ [package]
+-name = "solana-stake-interface"
+-version = "2.0.2"
+-description = "Instructions and constructors for the Stake program"
++name = "spherenet-stake-interface"
++version = { workspace = true }
++description = "Instructions and constructors for the SphereNet Stake program with Validator Whitelist"
+ readme = "README.md"
+ authors = { workspace = true }
+ repository = { workspace = true }
+@@ -9,6 +9,7 @@ homepage = { workspace = true }
+ license = { workspace = true }
+ edition = { workspace = true }
+ rust-version = "1.81.0"
++publish = true
+ 
+ [lib]
+ crate-type = ["rlib"]
+@@ -46,7 +47,7 @@ solana-account = {version = "3.2.0", features = ["bincode"] }
+ solana-borsh = "3.0.0"
+ solana-example-mocks = "3.0.0"
+ solana-sdk-ids = "3.0.0"
+-solana-stake-interface = { path = ".", features = ["bincode", "borsh", "sysvar"] }
++spherenet-stake-interface = { path = ".", features = ["bincode", "borsh", "sysvar"] }
+ static_assertions = "1.1.0"
+ strum = "0.27"
+ strum_macros = "0.27"
+diff --git a/interface/src/sysvar/stake_history.rs b/interface/src/sysvar/stake_history.rs
+index 2138042..1e3610e 100644
+--- a/interface/src/sysvar/stake_history.rs
++++ b/interface/src/sysvar/stake_history.rs
+@@ -18,7 +18,7 @@
+ //!
+ //! ```
+ //! # use solana_example_mocks::{solana_account, solana_rpc_client};
+-//! # use solana_stake_interface::{stake_history::StakeHistory, sysvar::stake_history};
++//! # use spherenet_stake_interface::{stake_history::StakeHistory, sysvar::stake_history};
+ //! # use solana_account::Account;
+ //! # use solana_rpc_client::rpc_client::RpcClient;
+ //! # use anyhow::Result;
+diff --git a/program/Cargo.toml b/program/Cargo.toml
+index 02a2872..1320a09 100644
+--- a/program/Cargo.toml
++++ b/program/Cargo.toml
+@@ -1,11 +1,12 @@
+ [package]
+-name = "solana-stake-program"
+-version = "4.0.0"
+-description = "Solana BPF Stake Program"
+-authors = ["Anza Maintainers <maintainers@anza.xyz>"]
+-repository = "https://github.com/solana-program/stake-program"
+-license = "Apache-2.0"
+-edition = "2021"
++name = "spherenet-stake-program"
++version = { workspace = true }
++description = "SphereNet BPF Stake Program with Validator Whitelist"
++authors = { workspace = true }
++repository = { workspace = true }
++license = { workspace = true }
++edition = { workspace = true }
++publish = false
+ 
+ [dependencies]
+ bincode = "1.3.3"
+@@ -19,10 +20,20 @@ solana-program-entrypoint = "3.0.0"
+ solana-program-error = "3.0.0"
+ solana-pubkey = "3.0.0"
+ solana-rent = "3.0.0"
+-solana-stake-interface = { version = "2", features = ["bincode", "borsh", "sysvar"] }
++spherenet-stake-interface = { workspace = true, features = ["bincode", "borsh", "sysvar"] }
+ solana-sysvar = "3.0.0"
+ solana-sysvar-id = "3.0.0"
+ solana-vote-interface = { version = "4.0.4", features = ["bincode"] }
++serde = "1.0"
++solana-sdk-ids = "3.0.0"
++spherenet-validator-whitelist-interface = "0.2.0"
++
++# Optional dependencies for helpers feature
++solana-genesis-config = { version = "3.0.0", optional = true }
++solana-account = { version = "3.2.0", optional = true, features = ["bincode"] }
++solana-keypair = { version = "3.0.0", optional = true }
++solana-signer = { version = "3.0.0", optional = true }
++solana-instruction = { version = "3.0.0", optional = true }
+ 
+ [dev-dependencies]
+ agave-feature-set = "3.0.0"
+@@ -42,6 +53,7 @@ solana-program-test = "3.0.10"
+ solana-sdk-ids = "3.0.0"
+ solana-signature = "3.2.0"
+ solana-signer = "3.0.0"
++solana-stake-interface = "2"
+ solana-svm-log-collector = "3.0.0"
+ solana-system-interface = { version = "2.0.0", features = ["bincode"] }
+ solana-transaction = "3.0.0"
+@@ -50,6 +62,16 @@ test-case = "3.3.1"
+ [lib]
+ crate-type = ["cdylib", "lib"]
+ 
++[features]
++default = []
++helpers = [
++    "solana-genesis-config",
++    "solana-account",
++    "solana-keypair",
++    "solana-signer",
++    "solana-instruction"
++]
++
+ [lints]
+ workspace = true
+ 
+diff --git a/program/src/helpers/delegate.rs b/program/src/helpers/delegate.rs
+index 194a34e..cdb0814 100644
+--- a/program/src/helpers/delegate.rs
++++ b/program/src/helpers/delegate.rs
+@@ -3,7 +3,7 @@ use {
+     solana_clock::Epoch,
+     solana_program_error::ProgramError,
+     solana_pubkey::Pubkey,
+-    solana_stake_interface::{
++    spherenet_stake_interface::{
+         error::StakeError,
+         state::{Delegation, Meta, Stake},
+     },
+diff --git a/program/src/helpers/genesis.rs b/program/src/helpers/genesis.rs
+new file mode 100644
+index 0000000..cf94a53
+--- /dev/null
++++ b/program/src/helpers/genesis.rs
+@@ -0,0 +1,83 @@
++use solana_keypair::Keypair;
++use solana_pubkey::Pubkey;
++use solana_rent::Rent;
++use solana_signer::Signer;
++use spherenet_validator_whitelist_interface::state::{
++    account::ValidatorWhitelistAccount, whitelist_entry::ValidatorWhitelistEntry, AccountState,
++    SizeOf,
++};
++
++use solana_account::AccountSharedData;
++use solana_genesis_config::GenesisConfig;
++
++pub fn add_validator_whitelist_account_to_genesis_config(
++    genesis_config: &mut GenesisConfig,
++    authority: &Pubkey,
++    vote_accounts_count: u32,
++) {
++    let data_size = ValidatorWhitelistAccount::SIZE_OF;
++
++    let non_zero_rent = match genesis_config.rent.lamports_per_byte_year {
++        0 => &Rent::default(),
++        _ => &genesis_config.rent,
++    };
++
++    let lamports = Rent::minimum_balance(non_zero_rent, data_size);
++
++    let mut validator_whitelist_account = AccountSharedData::new(
++        lamports,
++        data_size,
++        &spherenet_validator_whitelist_interface::program_solana::id(),
++    );
++
++    let validator_whitelist_account_data = ValidatorWhitelistAccount {
++        authority: authority.to_bytes(),
++        pending_authority: Pubkey::default().to_bytes(),
++        validator_amount: vote_accounts_count.to_le_bytes(),
++        state: AccountState::Initialized as u8,
++    }
++    .pack();
++
++    validator_whitelist_account.set_data_from_slice(&validator_whitelist_account_data);
++
++    genesis_config.add_account(
++        spherenet_validator_whitelist_interface::account_solana::id(),
++        validator_whitelist_account,
++    );
++}
++
++pub fn add_validator_whitelist_entry_to_genesis_config(
++    genesis_config: &mut GenesisConfig,
++    vote_keypair: &Keypair,
++) -> Pubkey {
++    let whitelist_entry_pubkey = Pubkey::find_program_address(
++        &[vote_keypair.pubkey().as_ref()],
++        &spherenet_validator_whitelist_interface::program_solana::id(),
++    )
++    .0;
++
++    let whitelist_entry_data = ValidatorWhitelistEntry {
++        pubkey: vote_keypair.pubkey().to_bytes(),
++        start_epoch: 0u64.to_le_bytes(),
++        end_epoch: u64::MAX.to_le_bytes(),
++        state: AccountState::Initialized as u8,
++    }
++    .pack();
++
++    let non_zero_rent = match genesis_config.rent.lamports_per_byte_year {
++        0 => &Rent::default(),
++        _ => &genesis_config.rent,
++    };
++
++    let mut whitelist_entry_account = AccountSharedData::new(
++        Rent::minimum_balance(non_zero_rent, ValidatorWhitelistEntry::SIZE_OF),
++        ValidatorWhitelistEntry::SIZE_OF,
++        &spherenet_validator_whitelist_interface::program_solana::ID,
++    );
++    whitelist_entry_account.set_data_from_slice(&whitelist_entry_data);
++
++    // Insert the whitelist entry into the genesis config
++    genesis_config.add_account(whitelist_entry_pubkey, whitelist_entry_account);
++
++    whitelist_entry_pubkey
++}
+diff --git a/program/src/helpers/merge.rs b/program/src/helpers/merge.rs
+index 84ffa09..bc1ad76 100644
+--- a/program/src/helpers/merge.rs
++++ b/program/src/helpers/merge.rs
+@@ -3,7 +3,7 @@ use {
+     solana_clock::{Clock, Epoch},
+     solana_msg::msg,
+     solana_program_error::{ProgramError, ProgramResult},
+-    solana_stake_interface::{
++    spherenet_stake_interface::{
+         error::StakeError, stake_flags::StakeFlags, stake_history::StakeHistoryGetEntry, state::*,
+     },
+     std::convert::TryFrom,
+@@ -236,7 +236,7 @@ mod tests {
+         solana_account::{state_traits::StateMut, AccountSharedData, ReadableAccount},
+         solana_pubkey::Pubkey,
+         solana_rent::Rent,
+-        solana_stake_interface::stake_history::{StakeHistory, StakeHistoryEntry},
++        spherenet_stake_interface::stake_history::{StakeHistory, StakeHistoryEntry},
+     };
+ 
+     #[test]
+diff --git a/program/src/helpers/mod.rs b/program/src/helpers/mod.rs
+index 81bd7d2..82488a4 100644
+--- a/program/src/helpers/mod.rs
++++ b/program/src/helpers/mod.rs
+@@ -6,6 +6,10 @@ pub(crate) use delegate::*;
+ pub(crate) mod merge;
+ pub(crate) use merge::*;
+ 
++// Genesis config utilities (feature-gated, public API)
++#[cfg(feature = "helpers")]
++pub mod genesis;
++
+ pub(crate) fn checked_add(a: u64, b: u64) -> Result<u64, ProgramError> {
+     a.checked_add(b).ok_or(ProgramError::InsufficientFunds)
+ }
+diff --git a/program/src/instruction_builders.rs b/program/src/instruction_builders.rs
+new file mode 100644
+index 0000000..6ee73cd
+--- /dev/null
++++ b/program/src/instruction_builders.rs
+@@ -0,0 +1,95 @@
++//! Instruction builders with validator whitelist support
++//!
++//! These helpers automatically include the whitelist entry PDA in delegation instructions.
++//! Only available when the `helpers` feature is enabled.
++
++// Remove the following `allow` when the `Redelegate` variant is renamed to
++// `Unused` starting from v3.
++// Required to avoid warnings from uses of deprecated types during trait derivations.
++#![allow(deprecated)]
++
++use {
++    solana_instruction::{AccountMeta, Instruction},
++    spherenet_stake_interface::{
++        instruction::{create_account, create_account_with_seed, StakeInstruction},
++        program::ID,
++        state::{Authorized, Lockup},
++    },
++    spherenet_validator_whitelist_interface::program_solana::ID as WHITELIST_PROGRAM_ID,
++};
++use solana_pubkey::Pubkey;
++
++// Inline some constants to avoid dependencies.
++//
++// Note: replace these inline IDs with the corresponding value from
++// `solana_sdk_ids` once the version is updated to 2.2.0.
++
++const CLOCK_ID: Pubkey = Pubkey::from_str_const("SysvarC1ock11111111111111111111111111111111");
++
++const STAKE_HISTORY_ID: Pubkey =
++    Pubkey::from_str_const("SysvarStakeHistory1111111111111111111111111");
++
++pub fn create_account_and_delegate_stake(
++    from_pubkey: &Pubkey,
++    stake_pubkey: &Pubkey,
++    vote_pubkey: &Pubkey,
++    authorized: &Authorized,
++    lockup: &Lockup,
++    lamports: u64,
++) -> Vec<Instruction> {
++    let mut instructions = create_account(from_pubkey, stake_pubkey, authorized, lockup, lamports);
++    instructions.push(delegate_stake(
++        stake_pubkey,
++        &authorized.staker,
++        vote_pubkey,
++    ));
++    instructions
++}
++
++#[allow(clippy::too_many_arguments)]
++pub fn create_account_with_seed_and_delegate_stake(
++    from_pubkey: &Pubkey,
++    stake_pubkey: &Pubkey,
++    base: &Pubkey,
++    seed: &str,
++    vote_pubkey: &Pubkey,
++    authorized: &Authorized,
++    lockup: &Lockup,
++    lamports: u64,
++) -> Vec<Instruction> {
++    let mut instructions = create_account_with_seed(
++        from_pubkey,
++        stake_pubkey,
++        base,
++        seed,
++        authorized,
++        lockup,
++        lamports,
++    );
++    instructions.push(delegate_stake(
++        stake_pubkey,
++        &authorized.staker,
++        vote_pubkey,
++    ));
++    instructions
++}
++
++pub fn delegate_stake(
++    stake_pubkey: &Pubkey,
++    authorized_pubkey: &Pubkey,
++    vote_pubkey: &Pubkey,
++) -> Instruction {
++    let account_metas = vec![
++        AccountMeta::new(*stake_pubkey, false),
++        AccountMeta::new_readonly(*vote_pubkey, false),
++        AccountMeta::new_readonly(CLOCK_ID, false),
++        AccountMeta::new_readonly(STAKE_HISTORY_ID, false),
++        // Whitelist entry pubkey for stake delegation
++        AccountMeta::new_readonly(
++            Pubkey::find_program_address(&[&vote_pubkey.to_bytes()], &WHITELIST_PROGRAM_ID).0,
++            false,
++        ),
++        AccountMeta::new_readonly(*authorized_pubkey, true),
++    ];
++    Instruction::new_with_bincode(ID, &StakeInstruction::DelegateStake, account_metas)
++}
 diff --git a/program/src/lib.rs b/program/src/lib.rs
-index 41eafb0..eee520d 100644
+index eee520d..3baa854 100644
 --- a/program/src/lib.rs
 +++ b/program/src/lib.rs
-@@ -7,16 +7,6 @@ pub mod entrypoint;
+@@ -1,10 +1,29 @@
+ use solana_native_token::LAMPORTS_PER_SOL;
  
+-pub mod helpers;
+ pub mod processor;
+ 
+ pub mod entrypoint;
+ 
++// Internal helpers (includes genesis utilities when feature enabled)
++pub mod helpers;
++
++// Instruction builders with whitelist support (feature-gated)
++#[cfg(feature = "helpers")]
++pub mod instruction_builders;
++
++// Re-export commonly used functions when helpers feature enabled
++#[cfg(feature = "helpers")]
++pub use instruction_builders::{
++    create_account_and_delegate_stake, create_account_with_seed_and_delegate_stake,
++    delegate_stake,
++};
++
++#[cfg(feature = "helpers")]
++pub use helpers::genesis::{
++    add_validator_whitelist_account_to_genesis_config,
++    add_validator_whitelist_entry_to_genesis_config,
++};
++
  solana_pubkey::declare_id!("Stake11111111111111111111111111111111111111");
  
--// placeholders for features
--// we have ONE feature in the current stake program we care about:
--// * stake_raise_minimum_delegation_to_1_sol /
--//   9onWzzvCzNC2jfhxxeqRgs5q7nFAAKpCUvkj6T6GJK9i this may or may not be
--//   activated by time we are done, but it should be confined to the program so
--//   we use a placeholder for now to call it out. but we can just change the
--//   program. it is unclear if or when it will ever be activated, because it
--//   requires a validator vote
--const FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL: bool = false;
--
  // feature_set::reduce_stake_warmup_cooldown changed the warmup/cooldown from
- // 25% to 9%. a function is provided by the sdk,
- // new_warmup_cooldown_rate_epoch(), which returns the epoch this change
-@@ -34,10 +24,6 @@ const PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH: Option<u64> = Some(0);
- /// delegation.
- #[inline(always)]
- pub fn get_minimum_delegation() -> u64 {
--    if FEATURE_STAKE_RAISE_MINIMUM_DELEGATION_TO_1_SOL {
--        const MINIMUM_DELEGATION_SOL: u64 = 1;
--        MINIMUM_DELEGATION_SOL * LAMPORTS_PER_SOL
--    } else {
--        1
--    }
-+    const MINIMUM_DELEGATION_SOL: u64 = 1;
-+    MINIMUM_DELEGATION_SOL * LAMPORTS_PER_SOL
+@@ -27,3 +46,12 @@ pub fn get_minimum_delegation() -> u64 {
+     const MINIMUM_DELEGATION_SOL: u64 = 1;
+     MINIMUM_DELEGATION_SOL * LAMPORTS_PER_SOL
  }
++
++// keccak256("CUSTOM_ERROR_INVALID_WHITELIST_PUBKEY") = 0xb526ed0b73b6db12d41d3fb3d6236f06975d57632abc3b74bd162ac5e549678d
++pub const CUSTOM_ERROR_INVALID_WHITELIST_PUBKEY: u32 = 0xb526ed0b;
++// keccak256("CUSTOM_ERROR_VALIDATOR_NOT_WHITELISTED") = 0x600eaac41ab02c248a21acec2a6493a36ed7391b5000148e9751c26bddeb2a9f
++pub const CUSTOM_ERROR_VALIDATOR_NOT_WHITELISTED: u32 = 0x600eaac4;
++// keccak256("CUSTOM_ERROR_VALIDATOR_TERM_NOT_STARTED") = 0xbede83fc8ce7d0ad6e8bf7bc79fca3005e58f3d5216cc1f4e9735bc757861af7
++pub const CUSTOM_ERROR_VALIDATOR_TERM_NOT_STARTED: u32 = 0xbede83fc;
++// keccak256("CUSTOM_ERROR_VALIDATOR_TERM_ENDED") = 0x9ccf307f6fe60fb8b17bb25de5d87f05c0b8b4f9b728ce50a62dc398a829f1eb
++pub const CUSTOM_ERROR_VALIDATOR_TERM_ENDED: u32 = 0x9ccf307f;
+diff --git a/program/src/processor.rs b/program/src/processor.rs
+index b602fb0..c519893 100644
+--- a/program/src/processor.rs
++++ b/program/src/processor.rs
+@@ -7,7 +7,7 @@ use {
+     solana_program_error::{ProgramError, ProgramResult},
+     solana_pubkey::Pubkey,
+     solana_rent::Rent,
+-    solana_stake_interface::{
++    spherenet_stake_interface::{
+         error::StakeError,
+         instruction::{
+             AuthorizeCheckedWithSeedArgs, AuthorizeWithSeedArgs, LockupArgs, LockupCheckedArgs,
+@@ -21,6 +21,7 @@ use {
+     solana_sysvar::{epoch_rewards::EpochRewards, Sysvar},
+     solana_sysvar_id::SysvarId,
+     solana_vote_interface::{program as solana_vote_program, state::VoteStateV4},
++    spherenet_validator_whitelist_interface::onchain::WhitelistEntryInformation,
+     std::{collections::HashSet, mem::MaybeUninit},
+ };
+ 
+@@ -393,8 +394,26 @@ impl Processor {
+             let branch_account = next_account_info(account_info_iter)?;
+             if Clock::check_id(branch_account.key) {
+                 let _stake_history_info = next_account_info(account_info_iter)?;
+-                let _stake_config_info = next_account_info(account_info_iter)?;
++                let whitelist_entry_info = next_account_info(account_info_iter)?;
+                 // let _stake_authority_info = next_account_info(account_info_iter);
++
++                // Validate the validator vote account against whitelist entry
++                let clock = &Clock::get()?;
++                let whitelist_entry_information = WhitelistEntryInformation {
++                    key: whitelist_entry_info.key,
++                    owner: whitelist_entry_info.owner,
++                    data: &whitelist_entry_info.try_borrow_data()?,
++                };
++
++                spherenet_validator_whitelist_interface::onchain::validate_vote_account_solana_program(
++                    whitelist_entry_information,
++                    vote_account_info.key,
++                    &clock.epoch,
++                )
++                .map_err(|e| match e {
++                    solana_instruction_error::InstructionError::Custom(code) => ProgramError::Custom(code),
++                    _ => ProgramError::InvalidInstructionData,
++                })?;
+             } else {
+                 let stake_authority_info = branch_account;
+                 if !stake_authority_info.is_signer {
+@@ -1174,16 +1193,12 @@ impl Processor {
+         Ok(())
+     }
+ 
+-    fn process_deactivate_delinquent(accounts: &[AccountInfo]) -> ProgramResult {
+-        let account_info_iter = &mut accounts.iter();
+-
+-        // invariant
+-        let stake_account_info = next_account_info(account_info_iter)?;
+-        let delinquent_vote_account_info = next_account_info(account_info_iter)?;
+-        let reference_vote_account_info = next_account_info(account_info_iter)?;
+-
+-        let clock = Clock::get()?;
+-
++    fn deactivate_network_delinquent(
++        stake_account_info: &AccountInfo,
++        delinquent_vote_account_info: &AccountInfo,
++        reference_vote_account_info: &AccountInfo,
++        clock: &Clock,
++    ) -> ProgramResult {
+         let delinquent_vote_state = get_vote_state(delinquent_vote_account_info)?;
+         let reference_vote_state = get_vote_state(reference_vote_account_info)?;
+ 
+@@ -1214,9 +1229,91 @@ impl Processor {
+             }
+         } else {
+             Err(ProgramError::InvalidAccountData)
+-        }?;
++        }
++    }
+ 
+-        Ok(())
++    fn deactivate_delisted_delinquent(
++        stake_account_info: &AccountInfo,
++        delisted_vote_account_info: &AccountInfo,
++        whitelist_entry_account_info: &AccountInfo,
++        clock: &Clock,
++    ) -> ProgramResult {
++        // Verify delisted vote account is a vote account
++        if *delisted_vote_account_info.owner != solana_vote_program::id() {
++            return Err(ProgramError::IncorrectProgramId);
++        }
++
++        // Validate whitelist entry
++        let whitelist_entry_information = WhitelistEntryInformation {
++            key: whitelist_entry_account_info.key,
++            owner: whitelist_entry_account_info.owner,
++            data: &whitelist_entry_account_info.try_borrow_data()?,
++        };
++
++        if let StakeStateV2::Stake(meta, mut stake, stake_flags) =
++            get_stake_state(stake_account_info)?
++        {
++            if stake.delegation.voter_pubkey != *delisted_vote_account_info.key {
++                return Err(StakeError::VoteAddressMismatch.into());
++            }
++
++            // Verify validator is delisted (whitelist entry is system-owned tombstone)
++            spherenet_validator_whitelist_interface::onchain::throw_if_not_unlisted(
++                whitelist_entry_information,
++                delisted_vote_account_info.key,
++            )
++            .map_err(|e| match e {
++                solana_instruction_error::InstructionError::Custom(code) => ProgramError::Custom(code),
++                _ => ProgramError::InvalidInstructionData,
++            })?;
++
++            stake.deactivate(clock.epoch)?;
++
++            set_stake_state(
++                stake_account_info,
++                &StakeStateV2::Stake(meta, stake, stake_flags),
++            )
++        } else {
++            Err(ProgramError::InvalidAccountData)
++        }
++    }
++
++    fn process_deactivate_delinquent(accounts: &[AccountInfo]) -> ProgramResult {
++        let account_info_iter = &mut accounts.iter();
++
++        // invariant
++        let stake_account_info = next_account_info(account_info_iter)?;
++        let delinquent_vote_account_info = next_account_info(account_info_iter)?;
++        let support_account_info = next_account_info(account_info_iter)?;
++
++        let clock = Clock::get()?;
++
++        // Dispatch based on support account owner
++        match *support_account_info.owner {
++            owner if owner == solana_vote_program::id() => {
++                // Network delinquent: reference vote account
++                Self::deactivate_network_delinquent(
++                    stake_account_info,
++                    delinquent_vote_account_info,
++                    support_account_info,
++                    &clock,
++                )
++            }
++            owner if owner == spherenet_validator_whitelist_interface::program_solana::id()
++                || owner == solana_sdk_ids::system_program::id() => {
++                // Delisted delinquent: whitelist entry (active or tombstone)
++                Self::deactivate_delisted_delinquent(
++                    stake_account_info,
++                    delinquent_vote_account_info,
++                    support_account_info,
++                    &clock,
++                )
++            }
++            _ => {
++                // Reject unknown account types
++                Err(ProgramError::IncorrectProgramId)
++            }
++        }
+     }
+ 
+     fn process_move_stake(accounts: &[AccountInfo], lamports: u64) -> ProgramResult {
+diff --git a/program/tests/interface.rs b/program/tests/interface.rs
+index b6e1952..4381a26 100644
+--- a/program/tests/interface.rs
++++ b/program/tests/interface.rs
+@@ -12,22 +12,27 @@ use {
+     solana_pubkey::Pubkey,
+     solana_rent::Rent,
+     solana_sdk_ids::system_program,
+-    solana_stake_interface::{
++    // Mollusk depends on solana-stake-interface, so we need to use its StakeHistoryEntry for test setup
++    solana_stake_interface::stake_history::StakeHistoryEntry,
++    spherenet_stake_interface::{
+         instruction::{self, LockupArgs},
+         stake_flags::StakeFlags,
+-        stake_history::{StakeHistory, StakeHistoryEntry},
++        stake_history::StakeHistory,
+         state::{
+             warmup_cooldown_rate, Authorized, Delegation, Lockup, Meta, Stake, StakeAuthorize,
+             StakeStateV2, NEW_WARMUP_COOLDOWN_RATE,
+         },
+     },
+-    solana_stake_program::{get_minimum_delegation, id},
++    spherenet_stake_program::{get_minimum_delegation, id},
+     solana_svm_log_collector::LogCollector,
+     solana_sysvar_id::SysvarId,
+     solana_vote_interface::{
+         program as vote_program,
+         state::{VoteStateV4, VoteStateVersions},
+     },
++    spherenet_validator_whitelist_interface::state::{
++        whitelist_entry::ValidatorWhitelistEntry, AccountState, SizeOf,
++    },
+     std::{
+         collections::{HashMap, HashSet},
+         sync::LazyLock,
+@@ -115,6 +120,33 @@ fn assert_stake_rent_exemption() {
+     );
+ }
+ 
++// Helper function to create a valid whitelist entry account for a vote account
++fn create_whitelist_entry_account(vote_address: &Pubkey) -> (Pubkey, Account) {
++    use spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey;
++
++    let entry_pubkey = get_whitelist_entry_pubkey(vote_address).unwrap();
++
++    let data = ValidatorWhitelistEntry {
++        pubkey: vote_address.to_bytes(),
++        start_epoch: 0u64.to_le_bytes(),
++        end_epoch: u64::MAX.to_le_bytes(),
++        state: AccountState::Initialized as u8,
++    }
++    .pack();
++
++    let lamports = Rent::default().minimum_balance(<ValidatorWhitelistEntry as SizeOf>::SIZE_OF);
++
++    let account = Account::create(
++        lamports,
++        data.to_vec(),
++        spherenet_validator_whitelist_interface::program_solana::id(),
++        false,
++        u64::MAX,
++    );
++
++    (entry_pubkey, account)
++}
++
+ // exhaustive set of all test instruction declarations
+ // this is probabilistic but should exceed ten nines
+ // implementing it by hand would be extremely annoying
+@@ -143,7 +175,7 @@ impl Env {
+     fn init() -> Self {
+         // create a test environment at the execution epoch
+         let mut base_accounts = HashMap::new();
+-        let mut mollusk = Mollusk::new(&id(), "solana_stake_program");
++        let mut mollusk = Mollusk::new(&id(), "spherenet_stake_program");
+         mollusk.warp_to_slot(EXECUTION_EPOCH * mollusk.sysvars.epoch_schedule.slots_per_epoch + 1);
+         assert_eq!(mollusk.sysvars.clock.epoch, EXECUTION_EPOCH);
+ 
+@@ -198,6 +230,14 @@ impl Env {
+         );
+         base_accounts.insert(VOTE_ACCOUNT_GOLD, vote_account);
+ 
++        // create whitelist entries for all vote accounts
++        let (whitelist_red, whitelist_red_account) = create_whitelist_entry_account(&VOTE_ACCOUNT_RED);
++        let (whitelist_blue, whitelist_blue_account) = create_whitelist_entry_account(&VOTE_ACCOUNT_BLUE);
++        let (whitelist_gold, whitelist_gold_account) = create_whitelist_entry_account(&VOTE_ACCOUNT_GOLD);
++        base_accounts.insert(whitelist_red, whitelist_red_account);
++        base_accounts.insert(whitelist_blue, whitelist_blue_account);
++        base_accounts.insert(whitelist_gold, whitelist_gold_account);
++
+         // create two blank stake accounts
+         let stake_account = Account::create(
+             STAKE_RENT_EXEMPTION,
+@@ -534,7 +574,12 @@ impl StakeInterface {
+                     minimum_delegation,
+                 );
+ 
+-                instruction::delegate_stake(&STAKE_ACCOUNT_BLACK, &STAKER_BLACK, &VOTE_ACCOUNT_RED)
++                // Create instruction and replace stake_config with whitelist entry
++                let mut instruction = instruction::delegate_stake(&STAKE_ACCOUNT_BLACK, &STAKER_BLACK, &VOTE_ACCOUNT_RED);
++                let whitelist_entry_pubkey = spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(&VOTE_ACCOUNT_RED).unwrap();
++                // Replace account at index 4 (stake_config) with whitelist entry
++                instruction.accounts[4].pubkey = whitelist_entry_pubkey;
++                instruction
+             }
+             Self::Split {
+                 lockup_state,
+@@ -1131,10 +1176,23 @@ fn test_no_use_dealloc() {
+ // NOTE this function and all `_new_interface` tests can be deleted after the instruction builders are updated
+ #[allow(deprecated)]
+ fn is_stake_program_sysvar_or_config(pubkey: Pubkey) -> bool {
+-    pubkey == Clock::id()
++    // Check if it's a known sysvar or config
++    if pubkey == Clock::id()
+         || pubkey == Rent::id()
+         || pubkey == StakeHistory::id()
+         || pubkey == solana_sdk_ids::stake::config::id()
++    {
++        return true;
++    }
++
++    // Check if it's a whitelist entry for any of our test vote accounts
++    let whitelist_entries = [
++        spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(&VOTE_ACCOUNT_RED).unwrap(),
++        spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(&VOTE_ACCOUNT_BLUE).unwrap(),
++        spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(&VOTE_ACCOUNT_GOLD).unwrap(),
++    ];
++
++    whitelist_entries.contains(&pubkey)
+ }
+ 
+ #[test]
 diff --git a/program/tests/program_test.rs b/program/tests/program_test.rs
-index 2098f51..a1a9181 100644
+index a1a9181..0c50629 100644
 --- a/program/tests/program_test.rs
 +++ b/program/tests/program_test.rs
-@@ -1048,8 +1048,8 @@ async fn program_test_split(split_source_type: StakeLifecycle) {
-         }
-     );
+@@ -12,7 +12,7 @@ use {
+     solana_rent::Rent,
+     solana_sdk_ids::system_program,
+     solana_signer::Signer,
+-    solana_stake_interface::{
++    spherenet_stake_interface::{
+         error::StakeError,
+         instruction::{self as ixn, LockupArgs},
+         program::id,
+@@ -25,12 +25,26 @@ use {
+         instruction as vote_instruction,
+         state::{VoteInit, VoteStateV4},
+     },
++    spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey,
+     test_case::{test_case, test_matrix},
+ };
  
--    // an active or transitioning stake account cannot have less than the minimum
--    // delegation note this is NOT dependent on the minimum delegation feature.
-+    // an active or transitioning stake account cannot have less than the minimum delegation
-+    // this is NOT dependent on the one sol minimum delegation feature
-     // there was ALWAYS a minimum. it was one lamport!
-     if split_source_type.minimum_delegation_enforced() {
-         // underfunded destination fails
-@@ -1063,7 +1063,7 @@ async fn program_test_split(split_source_type: StakeLifecycle) {
-         let e = process_instruction(&mut context, instruction, &signers)
-             .await
-             .unwrap_err();
--        assert_eq!(e, ProgramError::InsufficientFunds);
-+        assert_eq!(e, StakeError::InsufficientDelegation.into());
+ pub const USER_STARTING_LAMPORTS: u64 = 10_000_000_000_000; // 10k sol
+ pub const NO_SIGNERS: &[Keypair] = &[];
  
-         // underfunded source fails
-         let instruction = &ixn::split(
-@@ -1398,10 +1398,6 @@ async fn program_test_deactivate(activate: bool) {
-     assert_eq!(e, StakeError::AlreadyDeactivated.into());
++// Helper function to create delegate_stake instruction with whitelist entry
++pub fn delegate_stake_with_whitelist(
++    stake_pubkey: &Pubkey,
++    authorized_pubkey: &Pubkey,
++    vote_pubkey: &Pubkey,
++) -> Instruction {
++    let mut instruction = ixn::delegate_stake(stake_pubkey, authorized_pubkey, vote_pubkey);
++    // Replace account at index 4 (stake_config) with whitelist entry
++    let whitelist_entry_pubkey = get_whitelist_entry_pubkey(vote_pubkey).unwrap();
++    instruction.accounts[4].pubkey = whitelist_entry_pubkey;
++    instruction
++}
++
+ pub fn program_test() -> ProgramTest {
+     program_test_without_features(&[])
+ }
+@@ -43,7 +57,7 @@ pub fn program_test_without_features(feature_ids: &[Pubkey]) -> ProgramTest {
+         program_test.deactivate_feature(*feature_id);
+     }
+ 
+-    program_test.add_upgradeable_program_to_genesis("solana_stake_program", &id());
++    program_test.add_upgradeable_program_to_genesis("spherenet_stake_program", &id());
+ 
+     program_test
+ }
+@@ -85,6 +99,36 @@ impl Default for Accounts {
+     }
  }
  
--// XXX the original test_merge is a stupid test
--// the real thing is test_merge_active_stake which actively controls clock and
--// stake_history but im just trying to smoke test rn so lets do something
--// simpler
- #[test_matrix(
-     [StakeLifecycle::Uninitialized, StakeLifecycle::Initialized, StakeLifecycle::Activating,
-      StakeLifecycle::Active, StakeLifecycle::Deactivating, StakeLifecycle::Deactive],
++// Helper to create a whitelist entry account for a vote account
++pub async fn create_whitelist_entry(context: &mut ProgramTestContext, vote_pubkey: &Pubkey) {
++    use spherenet_validator_whitelist_interface::state::{
++        whitelist_entry::ValidatorWhitelistEntry, AccountState, SizeOf,
++    };
++
++    let entry_pubkey = get_whitelist_entry_pubkey(vote_pubkey).unwrap();
++
++    let data = ValidatorWhitelistEntry {
++        pubkey: vote_pubkey.to_bytes(),
++        start_epoch: 0u64.to_le_bytes(),
++        end_epoch: u64::MAX.to_le_bytes(),
++        state: AccountState::Initialized as u8,
++    }
++    .pack();
++
++    let rent = context.banks_client.get_rent().await.unwrap();
++    let lamports = rent.minimum_balance(<ValidatorWhitelistEntry as SizeOf>::SIZE_OF);
++
++    let account = SolanaAccount {
++        lamports,
++        data: data.to_vec(),
++        owner: spherenet_validator_whitelist_interface::program_solana::id(),
++        executable: false,
++        rent_epoch: 0,
++    };
++
++    context.set_account(&entry_pubkey, &account.into());
++}
++
+ pub async fn create_vote(
+     context: &mut ProgramTestContext,
+     validator: &Keypair,
+@@ -127,6 +171,9 @@ pub async fn create_vote(
+ 
+     // ignore errors for idempotency
+     let _ = context.banks_client.process_transaction(transaction).await;
++
++    // Create whitelist entry for this vote account
++    create_whitelist_entry(context, &vote_account.pubkey()).await;
+ }
+ 
+ pub async fn transfer(context: &mut ProgramTestContext, recipient: &Pubkey, amount: u64) {
+@@ -755,6 +802,7 @@ async fn program_test_stake_delegate() {
+         &vote_account2,
+     )
+     .await;
++    // Note: whitelist entry for vote_account2 is created by create_vote
+ 
+     let staker_keypair = Keypair::new();
+     let withdrawer_keypair = Keypair::new();
+@@ -770,7 +818,7 @@ async fn program_test_stake_delegate() {
+ 
+     let stake =
+         create_independent_stake_account(&mut context, &authorized, minimum_delegation).await;
+-    let instruction = ixn::delegate_stake(&stake, &staker, &accounts.vote_account.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+ 
+     process_instruction_test_missing_signers(&mut context, &instruction, &vec![&staker_keypair])
+         .await;
+@@ -794,7 +842,7 @@ async fn program_test_stake_delegate() {
+ 
+     // verify that delegate fails as stake is active and not deactivating
+     advance_epoch(&mut context).await;
+-    let instruction = ixn::delegate_stake(&stake, &staker, &accounts.vote_account.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+     let e = process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap_err();
+@@ -807,7 +855,7 @@ async fn program_test_stake_delegate() {
+         .unwrap();
+ 
+     // verify that delegate to a different vote account fails during deactivation
+-    let instruction = ixn::delegate_stake(&stake, &staker, &vote_account2.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &vote_account2.pubkey());
+     let e = process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap_err();
+@@ -815,7 +863,7 @@ async fn program_test_stake_delegate() {
+ 
+     // verify that delegate succeeds to same vote account when stake is deactivating
+     refresh_blockhash(&mut context).await;
+-    let instruction = ixn::delegate_stake(&stake, &staker, &accounts.vote_account.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+     process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap();
+@@ -826,7 +874,7 @@ async fn program_test_stake_delegate() {
+ 
+     // verify that delegate to a different vote account fails if stake is still
+     // active
+-    let instruction = ixn::delegate_stake(&stake, &staker, &vote_account2.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &vote_account2.pubkey());
+     let e = process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap_err();
+@@ -835,13 +883,15 @@ async fn program_test_stake_delegate() {
+     // delegate still fails after stake is fully activated; redelegate is not
+     // supported
+     advance_epoch(&mut context).await;
+-    let instruction = ixn::delegate_stake(&stake, &staker, &vote_account2.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &vote_account2.pubkey());
+     let e = process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap_err();
+     assert_eq!(e, StakeError::TooSoonToRedelegate.into());
+ 
+-    // delegate to spoofed vote account fails (not owned by vote program)
++    // delegate to spoofed vote account fails (whitelist validation fails first)
++    // NOTE: Previously this returned IncorrectProgramId (vote account not owned by vote program)
++    // but now whitelist validation happens first and returns a whitelist error
+     let mut fake_vote_account =
+         get_account(&mut context.banks_client, &accounts.vote_account.pubkey()).await;
+     fake_vote_account.owner = Pubkey::new_unique();
+@@ -850,12 +900,13 @@ async fn program_test_stake_delegate() {
+ 
+     let stake =
+         create_independent_stake_account(&mut context, &authorized, minimum_delegation).await;
+-    let instruction = ixn::delegate_stake(&stake, &staker, &fake_vote_address);
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &fake_vote_address);
+ 
+     let e = process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap_err();
+-    assert_eq!(e, ProgramError::IncorrectProgramId);
++    // Whitelist validation happens first, so we get a whitelist error instead of IncorrectProgramId
++    assert_eq!(e, ProgramError::Custom(0xAAAAAA13));
+ 
+     // delegate stake program-owned non-stake account fails
+     let rewards_pool_address = Pubkey::new_unique();
+@@ -870,7 +921,7 @@ async fn program_test_stake_delegate() {
+     };
+     context.set_account(&rewards_pool_address, &rewards_pool.into());
+ 
+-    let instruction = ixn::delegate_stake(
++    let instruction = delegate_stake_with_whitelist(
+         &rewards_pool_address,
+         &staker,
+         &accounts.vote_account.pubkey(),
+@@ -954,7 +1005,7 @@ impl StakeLifecycle {
+         }
+ 
+         if self >= StakeLifecycle::Activating {
+-            let instruction = ixn::delegate_stake(&stake, &staker_keypair.pubkey(), vote_account);
++            let instruction = delegate_stake_with_whitelist(&stake, &staker_keypair.pubkey(), vote_account);
+             process_instruction(context, &instruction, &vec![staker_keypair])
+                 .await
+                 .unwrap();
+@@ -1352,7 +1403,7 @@ async fn program_test_deactivate(activate: bool) {
+     assert_eq!(e, ProgramError::InvalidAccountData);
+ 
+     // delegate
+-    let instruction = ixn::delegate_stake(&stake, &staker, &accounts.vote_account.pubkey());
++    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+     process_instruction(&mut context, &instruction, &vec![&staker_keypair])
+         .await
+         .unwrap();
 diff --git a/program/tests/stake_instruction.rs b/program/tests/stake_instruction.rs
-index 0b9e572..e8f2b5c 100644
+index e8f2b5c..0f1bf11 100644
 --- a/program/tests/stake_instruction.rs
 +++ b/program/tests/stake_instruction.rs
-@@ -3602,24 +3602,30 @@ fn test_split_minimum_stake_delegation() {
-             is_writable: true,
+@@ -6,8 +6,8 @@ use {
+     bincode::serialize,
+     mollusk_svm::{result::Check, Mollusk},
+     solana_account::{
+-        create_account_shared_data_for_test, state_traits::StateMut, AccountSharedData,
+-        ReadableAccount, WritableAccount,
++        create_account_shared_data_for_test, state_traits::StateMut, Account,
++        AccountSharedData, ReadableAccount, WritableAccount,
+     },
+     solana_clock::{Clock, Epoch},
+     solana_epoch_rewards::EpochRewards,
+@@ -17,7 +17,7 @@ use {
+     solana_pubkey::Pubkey,
+     solana_rent::Rent,
+     solana_sdk_ids::system_program,
+-    solana_stake_interface::{
++    spherenet_stake_interface::{
+         config as stake_config,
+         error::StakeError,
+         instruction::{
+@@ -33,22 +33,54 @@ use {
          },
-     ];
--    // NOTE with a 1lamp minimum delegation, cases 2 and 4 merely hit the zero split error
--    // these would be InsufficientDelegation if the minimum were 1sol
-     for (source_delegation, split_amount, expected_result) in [
-+        // 0: source is twice minimum, we split minimum
-+        // success
-         (minimum_delegation * 2, minimum_delegation, Ok(())),
-+        // 1: source is twice minimum, we split one less than minimum
-+        // dest stake becomes underfunded
-         (
-             minimum_delegation * 2,
-             minimum_delegation - 1,
--            Err(ProgramError::InsufficientFunds),
-+            Err(StakeError::InsufficientDelegation.into()),
-         ),
-+        // 2: source is one less than twice minimum, we split minimum
-+        // source stake becomes underfunded
-         (
-             (minimum_delegation * 2) - 1,
-             minimum_delegation,
-             Err(StakeError::InsufficientDelegation.into()),
-         ),
-+        // 3: source is two less than twice minimum, we split one less than minimum
-+        // both stakes become underfunded
-         (
-             (minimum_delegation - 1) * 2,
-             minimum_delegation - 1,
--            Err(ProgramError::InsufficientFunds),
-+            Err(StakeError::InsufficientDelegation.into()),
-         ),
-     ] {
-         let source_account = AccountSharedData::new_data_with_space(
-@@ -3854,12 +3860,9 @@ fn test_initialized_split_destination_minimum_balance() {
- /// Ensure that `split()` correctly handles prefunded destination accounts from staked stakes.
- /// When a destination account already has funds, ensure the minimum split amount reduces
- /// accordingly.
--// NOTE it is not presently possible to test 1sol minimum delegation
--// #[test_case(feature_set_all_enabled(), &[Err(StakeError::InsufficientDelegation.into()), Err(StakeError::InsufficientDelegation.into())]; "all_enabled")]
- #[test]
- fn test_staked_split_destination_minimum_balance() {
-     let mollusk = mollusk_bpf();
--    let expected_results = &[Ok(()), Ok(())];
+         MINIMUM_DELINQUENT_EPOCHS_FOR_DEACTIVATION,
+     },
+-    solana_stake_program::{get_minimum_delegation, id},
++    spherenet_stake_program::{get_minimum_delegation, id},
+     solana_sysvar::{clock, epoch_rewards, epoch_schedule, rent, rewards},
+     solana_sysvar_id::SysvarId,
+     solana_vote_interface::state::{VoteStateV4, VoteStateVersions, MAX_EPOCH_CREDITS_HISTORY},
++    spherenet_validator_whitelist_interface::state::{
++        whitelist_entry::ValidatorWhitelistEntry, AccountState, SizeOf,
++    },
+     std::{collections::HashSet, str::FromStr},
+     test_case::test_case,
+ };
  
+ fn mollusk_bpf() -> Mollusk {
+-    let mut mollusk = Mollusk::new(&id(), "solana_stake_program");
++    let mut mollusk = Mollusk::new(&id(), "spherenet_stake_program");
+     mollusk
+         .feature_set
+         .deactivate(&stake_raise_minimum_delegation_to_1_sol::id());
+     mollusk
+ }
+ 
++fn create_default_valid_whitelist_entry_account(
++    vote_address: &Pubkey,
++) -> (Pubkey, AccountSharedData) {
++    use spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey;
++
++    let entry_pubkey = get_whitelist_entry_pubkey(vote_address).unwrap();
++
++    let data = ValidatorWhitelistEntry {
++        pubkey: vote_address.to_bytes(),
++        start_epoch: 0u64.to_le_bytes(),
++        end_epoch: u64::MAX.to_le_bytes(),
++        state: AccountState::Initialized as u8,
++    }
++    .pack();
++
++    let non_zero_rent = Rent::default();
++    let lamports = non_zero_rent.minimum_balance(<ValidatorWhitelistEntry as SizeOf>::SIZE_OF);
++
++    let account = AccountSharedData::from(Account {
++        lamports,
++        data: data.to_vec(),
++        owner: spherenet_validator_whitelist_interface::program_solana::id(),
++        executable: false,
++        rent_epoch: 0,
++    });
++
++    (entry_pubkey, account)
++}
++
+ fn create_default_account() -> AccountSharedData {
+     AccountSharedData::new(0, 0, &Pubkey::new_unique())
+ }
+@@ -328,7 +360,7 @@ mod config {
+     use {
+         solana_account::{Account, AccountSharedData},
+         solana_config_interface::state::ConfigKeys,
+-        solana_stake_interface::config::Config,
++        spherenet_stake_interface::config::Config,
+     };
+ 
+     #[allow(deprecated)]
+@@ -406,7 +438,7 @@ fn test_stake_process_instruction() {
+             &Pubkey::new_unique(),
+             &invalid_vote_state_pubkey(),
+         ),
+-        Err(ProgramError::InvalidAccountData),
++        Err(ProgramError::Custom(2863311387)),
+     );
+     process_instruction_as_one_arg(
+         &mollusk,
+@@ -449,7 +481,7 @@ fn test_stake_process_instruction() {
+             &invalid_vote_state_pubkey(),
+             &Pubkey::new_unique(),
+         ),
+-        Err(ProgramError::InvalidAccountData),
++        Err(ProgramError::IncorrectProgramId),
+     );
+     process_instruction_as_one_arg(
+         &mollusk,
+@@ -498,10 +530,8 @@ fn test_stake_process_instruction_decode_bail() {
+     let vote_account = AccountSharedData::new(0, 0, &solana_sdk_ids::vote::id());
+     let clock_address = clock::id();
+     let clock_account = create_account_shared_data_for_test(&clock::Clock::default());
+-    #[allow(deprecated)]
+-    let config_address = stake_config::id();
+-    #[allow(deprecated)]
+-    let config_account = config::create_account(0, &stake_config::Config::default());
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     let rent_exempt_reserve = rent.minimum_balance(StakeStateV2::size_of());
      let minimum_delegation = crate::get_minimum_delegation();
-     let rent = Rent::default();
-@@ -3884,77 +3887,76 @@ fn test_staked_split_destination_minimum_balance() {
+     let withdrawal_amount = rent_exempt_reserve + minimum_delegation;
+@@ -573,6 +603,7 @@ fn test_stake_process_instruction_decode_bail() {
+     );
+ 
+     // gets the check non-deserialize-able account in delegate_stake
++    // NOTE: Stake account is bad, so it fails at deserialization (before whitelist validation)
+     process_instruction(
+         &mollusk,
+         &serialize(&StakeInstruction::DelegateStake).unwrap(),
+@@ -581,7 +612,7 @@ fn test_stake_process_instruction_decode_bail() {
+             (vote_address, vote_account.clone()),
+             (clock_address, clock_account),
+             (stake_history_address, stake_history_account.clone()),
+-            (config_address, config_account),
++            (whitelist_entry_address, whitelist_entry_account),
+         ],
+         vec![
+             AccountMeta {
+@@ -605,7 +636,7 @@ fn test_stake_process_instruction_decode_bail() {
+                 is_writable: false,
+             },
+             AccountMeta {
+-                pubkey: config_address,
++                pubkey: whitelist_entry_address,
+                 is_signer: false,
+                 is_writable: false,
+             },
+@@ -1583,6 +1614,10 @@ fn test_authorize_delegated_stake() {
+     let vote_account = create_default_vote_account();
+     let vote_address_2 = solana_pubkey::new_rand();
+     let vote_account_2 = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
++    let (whitelist_entry_address_2, whitelist_entry_account_2) =
++        create_default_valid_whitelist_entry_account(&vote_address_2);
+     #[allow(deprecated)]
+     let mut transaction_accounts = vec![
+         (stake_address, stake_account),
+@@ -1600,10 +1635,8 @@ fn test_authorize_delegated_stake() {
+             StakeHistory::id(),
+             create_account_shared_data_for_test(&StakeHistory::default()),
+         ),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
++        (whitelist_entry_address_2, whitelist_entry_account_2),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -1632,7 +1665,7 @@ fn test_authorize_delegated_stake() {
+             is_writable: false,
          },
+         AccountMeta {
+-            pubkey: stake_config::id(),
++            pubkey: whitelist_entry_address,
+             is_signer: false,
+             is_writable: false,
+         },
+@@ -1706,6 +1739,7 @@ fn test_authorize_delegated_stake() {
+     // Random other account should fail
+     instruction_accounts[0].is_signer = false;
+     instruction_accounts[1].pubkey = vote_address_2;
++    instruction_accounts[4].pubkey = whitelist_entry_address_2;
+     process_instruction(
+         &mollusk,
+         &serialize(&StakeInstruction::DelegateStake).unwrap(),
+@@ -1799,6 +1833,10 @@ fn test_stake_delegate() {
+         epoch: 1,
+         ..Clock::default()
+     };
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
++    let (whitelist_entry_address_2, whitelist_entry_account_2) =
++        create_default_valid_whitelist_entry_account(&vote_address_2);
+     #[allow(deprecated)]
+     let mut transaction_accounts = vec![
+         (stake_address, stake_account.clone()),
+@@ -1806,10 +1844,8 @@ fn test_stake_delegate() {
+         (vote_address_2, vote_account_2.clone()),
+         (clock::id(), create_account_shared_data_for_test(&clock)),
+         (StakeHistory::id(), create_empty_stake_history_for_test()),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
++        (whitelist_entry_address_2, whitelist_entry_account_2),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -1838,7 +1874,7 @@ fn test_stake_delegate() {
+             is_writable: false,
+         },
+         AccountMeta {
+-            pubkey: stake_config::id(),
++            pubkey: whitelist_entry_address,
+             is_signer: false,
+             is_writable: false,
+         },
+@@ -1914,6 +1950,7 @@ fn test_stake_delegate() {
+     // during deactivation
+     transaction_accounts[0] = (stake_address, accounts[0].clone());
+     instruction_accounts[1].pubkey = vote_address_2;
++    instruction_accounts[4].pubkey = whitelist_entry_address_2;
+     process_instruction(
+         &mollusk,
+         &serialize(&StakeInstruction::DelegateStake).unwrap(),
+@@ -1922,6 +1959,7 @@ fn test_stake_delegate() {
+         Err(StakeError::TooSoonToRedelegate.into()),
+     );
+     instruction_accounts[1].pubkey = vote_address;
++    instruction_accounts[4].pubkey = whitelist_entry_address;
+ 
+     // verify that delegate succeeds to same vote account
+     // when stake is deactivating
+@@ -1940,6 +1978,7 @@ fn test_stake_delegate() {
+     // if stake is still active
+     transaction_accounts[0] = (stake_address, accounts_2[0].clone());
+     instruction_accounts[1].pubkey = vote_address_2;
++    instruction_accounts[4].pubkey = whitelist_entry_address_2;
+     process_instruction(
+         &mollusk,
+         &serialize(&StakeInstruction::DelegateStake).unwrap(),
+@@ -1962,6 +2001,7 @@ fn test_stake_delegate() {
+         Ok(()),
+     );
+     instruction_accounts[1].pubkey = vote_address;
++    instruction_accounts[4].pubkey = whitelist_entry_address;
+     // verify that delegate() looks right, compare against hand-rolled
+     assert_eq!(
+         stake_from(&accounts[0]).unwrap(),
+@@ -2016,6 +2056,8 @@ fn test_redelegate_consider_balance_changes() {
+     let authority_address = solana_pubkey::new_rand();
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     let stake_address = solana_pubkey::new_rand();
+     let stake_account = AccountSharedData::new_data_with_space(
+         stake_lamports,
+@@ -2038,10 +2080,7 @@ fn test_redelegate_consider_balance_changes() {
+         (authority_address, AccountSharedData::default()),
+         (clock::id(), create_account_shared_data_for_test(&clock)),
+         (StakeHistory::id(), create_empty_stake_history_for_test()),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -2070,7 +2109,7 @@ fn test_redelegate_consider_balance_changes() {
+             is_writable: false,
+         },
+         AccountMeta {
+-            pubkey: stake_config::id(),
++            pubkey: whitelist_entry_address,
+             is_signer: false,
+             is_writable: false,
+         },
+@@ -2357,6 +2396,8 @@ fn test_withdraw_stake() {
+     .unwrap();
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     #[allow(deprecated)]
+     let mut transaction_accounts = vec![
+         (stake_address, stake_account),
+@@ -2379,10 +2420,7 @@ fn test_withdraw_stake() {
+             StakeHistory::id(),
+             create_account_shared_data_for_test(&StakeHistory::default()),
+         ),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -2516,7 +2554,7 @@ fn test_withdraw_stake() {
+                 is_writable: false,
+             },
+             AccountMeta {
+-                pubkey: stake_config::id(),
++                pubkey: whitelist_entry_address,
+                 is_signer: false,
+                 is_writable: false,
+             },
+@@ -2658,6 +2696,8 @@ fn test_withdraw_stake_before_warmup() {
+     .unwrap();
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     let mut clock = Clock {
+         epoch: 16,
+         ..Clock::default()
+@@ -2672,10 +2712,7 @@ fn test_withdraw_stake_before_warmup() {
+             StakeHistory::id(),
+             create_account_shared_data_for_test(&StakeHistory::default()),
+         ),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -2737,7 +2774,7 @@ fn test_withdraw_stake_before_warmup() {
+                 is_writable: false,
+             },
+             AccountMeta {
+-                pubkey: stake_config::id(),
++                pubkey: whitelist_entry_address,
+                 is_signer: false,
+                 is_writable: false,
+             },
+@@ -3009,6 +3046,8 @@ fn test_deactivate() {
+     .unwrap();
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     #[allow(deprecated)]
+     let mut transaction_accounts = vec![
+         (stake_address, stake_account),
+@@ -3021,10 +3060,7 @@ fn test_deactivate() {
+             StakeHistory::id(),
+             create_account_shared_data_for_test(&StakeHistory::default()),
+         ),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -3091,7 +3127,7 @@ fn test_deactivate() {
+                 is_writable: false,
+             },
+             AccountMeta {
+-                pubkey: stake_config::id(),
++                pubkey: whitelist_entry_address,
+                 is_signer: false,
+                 is_writable: false,
+             },
+@@ -3138,6 +3174,8 @@ fn test_set_lockup() {
+     .unwrap();
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     let instruction_data = serialize(&StakeInstruction::SetLockup(LockupArgs {
+         unix_timestamp: Some(1),
+         epoch: Some(1),
+@@ -3162,10 +3200,7 @@ fn test_set_lockup() {
+             StakeHistory::id(),
+             create_account_shared_data_for_test(&StakeHistory::default()),
+         ),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -3276,7 +3311,7 @@ fn test_set_lockup() {
+                 is_writable: false,
+             },
+             AccountMeta {
+-                pubkey: stake_config::id(),
++                pubkey: whitelist_entry_address,
+                 is_signer: false,
+                 is_writable: false,
+             },
+@@ -3477,6 +3512,8 @@ fn test_delegate_minimum_stake_delegation() {
+     };
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     #[allow(deprecated)]
+     let instruction_accounts = vec![
+         AccountMeta {
+@@ -3500,7 +3537,7 @@ fn test_delegate_minimum_stake_delegation() {
+             is_writable: false,
+         },
+         AccountMeta {
+-            pubkey: stake_config::id(),
++            pubkey: whitelist_entry_address,
+             is_signer: false,
+             is_writable: false,
+         },
+@@ -3538,10 +3575,7 @@ fn test_delegate_minimum_stake_delegation() {
+                         StakeHistory::id(),
+                         create_account_shared_data_for_test(&StakeHistory::default()),
+                     ),
+-                    (
+-                        stake_config::id(),
+-                        config::create_account(0, &stake_config::Config::default()),
+-                    ),
++                    (whitelist_entry_address, whitelist_entry_account.clone()),
+                     (
+                         epoch_schedule::id(),
+                         create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -4163,6 +4197,8 @@ fn test_behavior_withdrawal_then_redelegate_with_less_than_minimum_stake_delegat
+     );
+     let vote_address = solana_pubkey::new_rand();
+     let vote_account = create_default_vote_account();
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
+     let recipient_address = solana_pubkey::new_rand();
+     let mut clock = Clock::default();
+     #[allow(deprecated)]
+@@ -4175,10 +4211,7 @@ fn test_behavior_withdrawal_then_redelegate_with_less_than_minimum_stake_delegat
+         ),
+         (clock::id(), create_account_shared_data_for_test(&clock)),
+         (StakeHistory::id(), create_empty_stake_history_for_test()),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
+         (
+             epoch_schedule::id(),
+             create_account_shared_data_for_test(&EpochSchedule::default()),
+@@ -4208,7 +4241,7 @@ fn test_behavior_withdrawal_then_redelegate_with_less_than_minimum_stake_delegat
+             is_writable: false,
+         },
+         AccountMeta {
+-            pubkey: stake_config::id(),
++            pubkey: whitelist_entry_address,
+             is_signer: false,
+             is_writable: false,
+         },
+@@ -7092,6 +7125,9 @@ fn setup_delegate_test_with_vote_account(
+     )
+     .unwrap();
+ 
++    let (whitelist_entry_address, whitelist_entry_account) =
++        create_default_valid_whitelist_entry_account(&vote_address);
++
+     let clock = Clock {
+         epoch: 1,
+         ..Clock::default()
+@@ -7103,10 +7139,7 @@ fn setup_delegate_test_with_vote_account(
+         (vote_address, vote_account),
+         (clock::id(), create_account_shared_data_for_test(&clock)),
+         (StakeHistory::id(), create_empty_stake_history_for_test()),
+-        (
+-            stake_config::id(),
+-            config::create_account(0, &stake_config::Config::default()),
+-        ),
++        (whitelist_entry_address, whitelist_entry_account),
      ];
-     for (destination_starting_balance, split_amount, expected_result) in [
--        // split amount must be non zero
-+        // 0: split amount must be non zero
-         (
-             rent_exempt_reserve + minimum_delegation,
-             0,
-             Err(ProgramError::InsufficientFunds),
-         ),
--        // destination is fully funded:
--        // - old behavior: any split amount is OK
--        // - new behavior: split amount must be at least the minimum delegation
-+        // 1: destination is fully funded
-+        // split amount must still be at least the minimum delegation
-         (
-             rent_exempt_reserve + minimum_delegation,
--            1,
--            expected_results[0].clone(),
-+            minimum_delegation - 1,
-+            Err(StakeError::InsufficientDelegation.into()),
-         ),
--        // if destination is only short by 1 lamport, then...
--        // - old behavior: split amount can be 1 lamport
--        // - new behavior: split amount must be at least the minimum delegation
-+        // 2: destination is short by 1 lamport
-+        // split amount must still be at least the minimum delegation
-         (
-             rent_exempt_reserve + minimum_delegation - 1,
-             1,
--            expected_results[1].clone(),
-+            Err(StakeError::InsufficientDelegation.into()),
-         ),
--        // destination short by 2 lamports, so 1 isn't enough (non-zero split amount)
-+        // 3: destination short by 2 lamports
-+        // split amount must still be at least the minimum delegation
-         (
-             rent_exempt_reserve + minimum_delegation - 2,
-             1,
--            Err(ProgramError::InsufficientFunds),
-+            Err(StakeError::InsufficientDelegation.into()),
-         ),
--        // destination is rent exempt, so split enough for minimum delegation
-+        // 4: destination is rent exempt, so split enough for minimum delegation
-         (rent_exempt_reserve, minimum_delegation, Ok(())),
--        // destination is rent exempt, but split amount less than minimum delegation
-+        // 5: destination is rent exempt, but split amount less than minimum delegation
-         (
-             rent_exempt_reserve,
--            minimum_delegation.saturating_sub(1), // when minimum is 0, this blows up!
--            Err(ProgramError::InsufficientFunds),
-+            minimum_delegation - 1,
-+            Err(StakeError::InsufficientDelegation.into()),
-         ),
--        // destination is not rent exempt, so any split amount fails, including enough for rent
-+        // 6: destination is not rent exempt, so any split amount fails, including enough for rent
-         // and minimum delegation
-         (
-             rent_exempt_reserve - 1,
-             minimum_delegation + 1,
-             Err(ProgramError::InsufficientFunds),
-         ),
--        // destination is not rent exempt, but split amount only for minimum delegation
-+        // 7: destination is not rent exempt, but split amount only for minimum delegation
-         (
-             rent_exempt_reserve - 1,
-             minimum_delegation,
-             Err(ProgramError::InsufficientFunds),
-         ),
--        // destination is not rent exempt, so any split amount fails, including case where
-+        // 8: destination is not rent exempt, so any split amount fails, including case where
-         // destination has smallest non-zero balance
-         (
-             1,
-             rent_exempt_reserve + minimum_delegation - 1,
-             Err(ProgramError::InsufficientFunds),
-         ),
--        // destination has smallest non-zero balance, but cannot split less than the minimum
-+        // 9: destination has smallest non-zero balance, but cannot split less than the minimum
-         // balance requirements minus what destination already has
-         (
-             1,
-             rent_exempt_reserve + minimum_delegation - 2,
-             Err(ProgramError::InsufficientFunds),
-         ),
--        // destination has zero lamports, so any split amount fails, including at least rent
-+        // 10: destination has zero lamports, so any split amount fails, including at least rent
-         // exempt reserve plus minimum delegation
-         (
-             0,
-             rent_exempt_reserve + minimum_delegation,
-             Err(ProgramError::InsufficientFunds),
-         ),
--        // destination has zero lamports, but split amount is less than rent exempt reserve
-+        // 11: destination has zero lamports, but split amount is less than rent exempt reserve
-         // plus minimum delegation
-         (
-             0,
+ 
+     #[allow(deprecated)]
+@@ -7132,7 +7165,7 @@ fn setup_delegate_test_with_vote_account(
+             is_writable: false,
+         },
+         AccountMeta {
+-            pubkey: stake_config::id(),
++            pubkey: whitelist_entry_address,
+             is_signer: false,
+             is_writable: false,
+         },
+@@ -7238,7 +7271,7 @@ fn test_delegate_incorrect_vote_owner() {
+         &serialize(&StakeInstruction::DelegateStake).unwrap(),
+         transaction_accounts,
+         instruction_accounts,
+-        Err(ProgramError::IncorrectProgramId), // <-- Always throws
++        Err(ProgramError::IncorrectProgramId), // Vote account owner check
+     );
+ }
+ 
 -- 
 2.39.5 (Apple Git-154)
 
