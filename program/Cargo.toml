@@ -1,6 +1,6 @@
 [package]
 name = "spherenet-stake-program"
-version = "4.0.0"
+version = { workspace = true }
 description = "SphereNet BPF Stake Program with Validator Whitelist"
 authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
 repository = "https://github.com/Sphere-Foundation/stake"

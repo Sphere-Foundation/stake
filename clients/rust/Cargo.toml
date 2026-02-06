@@ -1,6 +1,6 @@
 [package]
 name = "spherenet-stake-client"
-version = "0.0.0"
+version = { workspace = true }
 description = "A generated Rust library for the SphereNet Stake program with Validator Whitelist"
 repository = "https://github.com/Sphere-Foundation/stake"
 edition = "2021"
