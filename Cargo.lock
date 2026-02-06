@@ -7556,6 +7556,8 @@ dependencies = [
 [[package]]
 name = "spherenet-validator-whitelist-interface"
 version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24915dbf6de66ed70e00ba9d6b055825f4f956141c3c8cb84bbfa81d00f36e4a"
 dependencies = [
  "bs58",
  "bytemuck",
