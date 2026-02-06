@@ -8,7 +8,7 @@ members = [
 
 [workspace.package]
 authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
-repository = "https://github.com/spherenet/stake-program"
+repository = "https://github.com/Sphere-Foundation/stake"
 homepage = "https://anza.xyz/"
 license = "Apache-2.0"
 edition = "2021"

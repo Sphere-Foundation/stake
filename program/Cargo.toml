@@ -3,7 +3,7 @@ name = "spherenet-stake-program"
 version = "4.0.0"
 description = "SphereNet BPF Stake Program with Validator Whitelist"
 authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
-repository = "https://github.com/spherenet/stake-program"
+repository = "https://github.com/Sphere-Foundation/stake"
 license = "Apache-2.0"
 edition = "2021"
 publish = false
@@ -53,6 +53,7 @@ solana-program-test = "3.0.10"
 solana-sdk-ids = "3.0.0"
 solana-signature = "3.2.0"
 solana-signer = "3.0.0"
+solana-stake-interface = "2"
 solana-svm-log-collector = "3.0.0"
 solana-system-interface = { version = "2.0.0", features = ["bincode"] }
 solana-transaction = "3.0.0"

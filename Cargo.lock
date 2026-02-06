@@ -7541,6 +7541,7 @@ dependencies = [
  "solana-sdk-ids",
  "solana-signature",
  "solana-signer",
+ "solana-stake-interface",
  "solana-svm-log-collector",
  "solana-system-interface",
  "solana-sysvar",

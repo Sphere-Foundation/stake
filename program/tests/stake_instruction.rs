@@ -17,7 +17,7 @@ use {
     solana_pubkey::Pubkey,
     solana_rent::Rent,
     solana_sdk_ids::system_program,
-    solana_stake_interface::{
+    spherenet_stake_interface::{
         config as stake_config,
         error::StakeError,
         instruction::{
@@ -360,7 +360,7 @@ mod config {
     use {
         solana_account::{Account, AccountSharedData},
         solana_config_interface::state::ConfigKeys,
-        solana_stake_interface::config::Config,
+        spherenet_stake_interface::config::Config,
     };
 
     #[allow(deprecated)]
