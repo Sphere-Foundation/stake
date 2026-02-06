@@ -1,7 +1,7 @@
-From bb3f3b95c695491098e445dcd3d9241f84b95947 Mon Sep 17 00:00:00 2001
+From 99dab40a43041f099e71a98cd0c8cad3168b5c10 Mon Sep 17 00:00:00 2001
 From: solarpx <solarpx@protonmail.com>
-Date: Fri, 6 Feb 2026 14:33:16 -0600
-Subject: [PATCH] feat: impl patchfile
+Date: Fri, 6 Feb 2026 14:55:52 -0600
+Subject: [PATCH] feat: impl spherenet mod
 
 ---
  Cargo.toml                            |   9 +-
@@ -24,7 +24,7 @@ Subject: [PATCH] feat: impl patchfile
  create mode 100644 program/src/instruction_builders.rs
 
 diff --git a/Cargo.toml b/Cargo.toml
-index ac4fc77..2f63d41 100644
+index ac4fc77..74d5902 100644
 --- a/Cargo.toml
 +++ b/Cargo.toml
 @@ -7,12 +7,17 @@ members = [
@@ -33,7 +33,7 @@ index ac4fc77..2f63d41 100644
  [workspace.package]
 -authors = ["Anza Maintainers <maintainers@anza.xyz>"]
 -repository = "https://github.com/solana-program/stake"
-+version = "0.2.0"
++version = "0.2.1"
 +authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
 +repository = "https://github.com/Sphere-Foundation/stake"
  homepage = "https://anza.xyz/"
