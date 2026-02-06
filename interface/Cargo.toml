@@ -1,6 +1,6 @@
 [package]
 name = "spherenet-stake-interface"
-version = "2.0.2"
+version = { workspace = true }
 description = "Instructions and constructors for the SphereNet Stake program with Validator Whitelist"
 readme = "README.md"
 authors = { workspace = true }

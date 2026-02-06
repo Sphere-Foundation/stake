@@ -1,11 +1,11 @@
 [package]
 name = "spherenet-stake-program"
-version = "4.0.0"
+version = { workspace = true }
 description = "SphereNet BPF Stake Program with Validator Whitelist"
-authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
-repository = "https://github.com/Sphere-Foundation/stake"
-license = "Apache-2.0"
-edition = "2021"
+authors = { workspace = true }
+repository = { workspace = true }
+license = { workspace = true }
+edition = { workspace = true }
 publish = false
 
 [dependencies]
