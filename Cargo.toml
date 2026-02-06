@@ -7,7 +7,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
 repository = "https://github.com/Sphere-Foundation/stake"
 homepage = "https://anza.xyz/"
