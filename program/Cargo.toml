@@ -27,6 +27,13 @@ serde = "1.0"
 solana-sdk-ids = "3.0.0"
 spherenet-validator-whitelist-interface = { path = "/Volumes/SSD/SPHERE/validator-whitelist/interface" }
 
+# Optional dependencies for helpers feature
+solana-genesis-config = { version = "3.0.0", optional = true }
+solana-account = { version = "3.2.0", optional = true, features = ["bincode"] }
+solana-keypair = { version = "3.0.0", optional = true }
+solana-signer = { version = "3.0.0", optional = true }
+solana-instruction = { version = "3.0.0", optional = true }
+
 [dev-dependencies]
 agave-feature-set = "3.0.0"
 arbitrary = { version = "1.4.2", features = ["derive"] }
@@ -52,6 +59,16 @@ test-case = "3.3.1"
 
 [lib]
 crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+helpers = [
+    "solana-genesis-config",
+    "solana-account",
+    "solana-keypair",
+    "solana-signer",
+    "solana-instruction"
+]
 
 [lints]
 workspace = true

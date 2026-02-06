@@ -6,6 +6,10 @@ pub(crate) use delegate::*;
 pub(crate) mod merge;
 pub(crate) use merge::*;
 
+// Genesis config utilities (feature-gated, public API)
+#[cfg(feature = "helpers")]
+pub mod genesis;
+
 pub(crate) fn checked_add(a: u64, b: u64) -> Result<u64, ProgramError> {
     a.checked_add(b).ok_or(ProgramError::InsufficientFunds)
 }

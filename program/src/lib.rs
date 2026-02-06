@@ -1,9 +1,28 @@
 use solana_native_token::LAMPORTS_PER_SOL;
 
-pub mod helpers;
 pub mod processor;
 
 pub mod entrypoint;
+
+// Internal helpers (includes genesis utilities when feature enabled)
+pub mod helpers;
+
+// Instruction builders with whitelist support (feature-gated)
+#[cfg(feature = "helpers")]
+pub mod instruction_builders;
+
+// Re-export commonly used functions when helpers feature enabled
+#[cfg(feature = "helpers")]
+pub use instruction_builders::{
+    create_account_and_delegate_stake, create_account_with_seed_and_delegate_stake,
+    delegate_stake,
+};
+
+#[cfg(feature = "helpers")]
+pub use helpers::genesis::{
+    add_validator_whitelist_account_to_genesis_config,
+    add_validator_whitelist_entry_to_genesis_config,
+};
 
 solana_pubkey::declare_id!("Stake11111111111111111111111111111111111111");
 
