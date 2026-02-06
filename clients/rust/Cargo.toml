@@ -6,6 +6,7 @@ repository = "https://github.com/spherenet/stake-program"
 edition = "2021"
 readme = "README.md"
 license-file = "../../LICENSE"
+publish = true
 
 [features]
 serde = ["dep:serde", "dep:serde_with"]
