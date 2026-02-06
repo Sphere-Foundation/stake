@@ -12,6 +12,7 @@ use {
     solana_pubkey::Pubkey,
     solana_rent::Rent,
     solana_sdk_ids::system_program,
+    // Mollusk depends on solana-stake-interface, so we need to use its StakeHistoryEntry for test setup
     solana_stake_interface::stake_history::StakeHistoryEntry,
     spherenet_stake_interface::{
         instruction::{self, LockupArgs},
