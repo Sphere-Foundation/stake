@@ -21,7 +21,7 @@ use {
             StakeStateV2, NEW_WARMUP_COOLDOWN_RATE,
         },
     },
-    solana_stake_program::{get_minimum_delegation, id},
+    spherenet_stake_program::{get_minimum_delegation, id},
     solana_svm_log_collector::LogCollector,
     solana_sysvar_id::SysvarId,
     solana_vote_interface::{
@@ -173,7 +173,7 @@ impl Env {
     fn init() -> Self {
         // create a test environment at the execution epoch
         let mut base_accounts = HashMap::new();
-        let mut mollusk = Mollusk::new(&id(), "solana_stake_program");
+        let mut mollusk = Mollusk::new(&id(), "spherenet_stake_program");
         mollusk.warp_to_slot(EXECUTION_EPOCH * mollusk.sysvars.epoch_schedule.slots_per_epoch + 1);
         assert_eq!(mollusk.sysvars.clock.epoch, EXECUTION_EPOCH);
 

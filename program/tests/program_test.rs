@@ -57,7 +57,7 @@ pub fn program_test_without_features(feature_ids: &[Pubkey]) -> ProgramTest {
         program_test.deactivate_feature(*feature_id);
     }
 
-    program_test.add_upgradeable_program_to_genesis("solana_stake_program", &id());
+    program_test.add_upgradeable_program_to_genesis("spherenet_stake_program", &id());
 
     program_test
 }

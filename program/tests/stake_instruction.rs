@@ -33,7 +33,7 @@ use {
         },
         MINIMUM_DELINQUENT_EPOCHS_FOR_DEACTIVATION,
     },
-    solana_stake_program::{get_minimum_delegation, id},
+    spherenet_stake_program::{get_minimum_delegation, id},
     solana_sysvar::{clock, epoch_rewards, epoch_schedule, rent, rewards},
     solana_sysvar_id::SysvarId,
     solana_vote_interface::state::{VoteStateV4, VoteStateVersions, MAX_EPOCH_CREDITS_HISTORY},
@@ -45,7 +45,7 @@ use {
 };
 
 fn mollusk_bpf() -> Mollusk {
-    let mut mollusk = Mollusk::new(&id(), "solana_stake_program");
+    let mut mollusk = Mollusk::new(&id(), "spherenet_stake_program");
     mollusk
         .feature_set
         .deactivate(&stake_raise_minimum_delegation_to_1_sol::id());

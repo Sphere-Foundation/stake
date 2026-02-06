@@ -1,9 +1,9 @@
 [package]
-name = "solana-stake-program"
+name = "spherenet-stake-program"
 version = "4.0.0"
-description = "Solana BPF Stake Program"
-authors = ["Anza Maintainers <maintainers@anza.xyz>"]
-repository = "https://github.com/solana-program/stake-program"
+description = "SphereNet BPF Stake Program with Validator Whitelist"
+authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
+repository = "https://github.com/spherenet/stake-program"
 license = "Apache-2.0"
 edition = "2021"
 
