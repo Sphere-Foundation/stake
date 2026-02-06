@@ -1,8 +1,8 @@
 [package]
-name = "solana-stake-client"
+name = "spherenet-stake-client"
 version = "0.0.0"
-description = "A generated Rust library for the Stake program"
-repository = "https://github.com/solana-program/stake"
+description = "A generated Rust library for the SphereNet Stake program with Validator Whitelist"
+repository = "https://github.com/spherenet/stake-program"
 edition = "2021"
 readme = "README.md"
 license-file = "../../LICENSE"

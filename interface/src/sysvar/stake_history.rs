@@ -18,7 +18,7 @@
 //!
 //! ```
 //! # use solana_example_mocks::{solana_account, solana_rpc_client};
-//! # use solana_stake_interface::{stake_history::StakeHistory, sysvar::stake_history};
+//! # use spherenet_stake_interface::{stake_history::StakeHistory, sysvar::stake_history};
 //! # use solana_account::Account;
 //! # use solana_rpc_client::rpc_client::RpcClient;
 //! # use anyhow::Result;

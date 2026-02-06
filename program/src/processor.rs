@@ -7,7 +7,7 @@ use {
     solana_program_error::{ProgramError, ProgramResult},
     solana_pubkey::Pubkey,
     solana_rent::Rent,
-    solana_stake_interface::{
+    spherenet_stake_interface::{
         error::StakeError,
         instruction::{
             AuthorizeCheckedWithSeedArgs, AuthorizeWithSeedArgs, LockupArgs, LockupCheckedArgs,

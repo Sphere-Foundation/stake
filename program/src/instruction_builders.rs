@@ -10,7 +10,7 @@
 
 use {
     solana_instruction::{AccountMeta, Instruction},
-    solana_stake_interface::{
+    spherenet_stake_interface::{
         instruction::{create_account, create_account_with_seed, StakeInstruction},
         program::ID,
         state::{Authorized, Lockup},
