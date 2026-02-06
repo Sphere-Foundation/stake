@@ -12,7 +12,7 @@ use {
     solana_rent::Rent,
     solana_sdk_ids::system_program,
     solana_signer::Signer,
-    solana_stake_interface::{
+    spherenet_stake_interface::{
         error::StakeError,
         instruction::{self as ixn, LockupArgs},
         program::id,

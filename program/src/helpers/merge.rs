@@ -3,7 +3,7 @@ use {
     solana_clock::{Clock, Epoch},
     solana_msg::msg,
     solana_program_error::{ProgramError, ProgramResult},
-    solana_stake_interface::{
+    spherenet_stake_interface::{
         error::StakeError, stake_flags::StakeFlags, stake_history::StakeHistoryGetEntry, state::*,
     },
     std::convert::TryFrom,
@@ -236,7 +236,7 @@ mod tests {
         solana_account::{state_traits::StateMut, AccountSharedData, ReadableAccount},
         solana_pubkey::Pubkey,
         solana_rent::Rent,
-        solana_stake_interface::stake_history::{StakeHistory, StakeHistoryEntry},
+        spherenet_stake_interface::stake_history::{StakeHistory, StakeHistoryEntry},
     };
 
     #[test]

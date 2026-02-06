@@ -7,11 +7,15 @@ members = [
 ]
 
 [workspace.package]
-authors = ["Anza Maintainers <maintainers@anza.xyz>"]
-repository = "https://github.com/solana-program/stake"
+authors = ["Anza Maintainers <maintainers@anza.xyz>", "SphereNet Contributors"]
+repository = "https://github.com/Sphere-Foundation/stake"
 homepage = "https://anza.xyz/"
 license = "Apache-2.0"
 edition = "2021"
+
+[workspace.dependencies]
+# Internal dependencies
+spherenet-stake-interface = { version = "^2", path = "interface" }
 
 [workspace.metadata.cli]
 solana = "3.0.0"

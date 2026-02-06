@@ -12,10 +12,12 @@ use {
     solana_pubkey::Pubkey,
     solana_rent::Rent,
     solana_sdk_ids::system_program,
-    solana_stake_interface::{
+    // Mollusk depends on solana-stake-interface, so we need to use its StakeHistoryEntry for test setup
+    solana_stake_interface::stake_history::StakeHistoryEntry,
+    spherenet_stake_interface::{
         instruction::{self, LockupArgs},
         stake_flags::StakeFlags,
-        stake_history::{StakeHistory, StakeHistoryEntry},
+        stake_history::StakeHistory,
         state::{
             warmup_cooldown_rate, Authorized, Delegation, Lockup, Meta, Stake, StakeAuthorize,
             StakeStateV2, NEW_WARMUP_COOLDOWN_RATE,

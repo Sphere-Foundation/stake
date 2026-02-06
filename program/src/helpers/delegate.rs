@@ -3,7 +3,7 @@ use {
     solana_clock::Epoch,
     solana_program_error::ProgramError,
     solana_pubkey::Pubkey,
-    solana_stake_interface::{
+    spherenet_stake_interface::{
         error::StakeError,
         state::{Delegation, Meta, Stake},
     },
