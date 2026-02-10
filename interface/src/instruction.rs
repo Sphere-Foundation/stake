@@ -792,10 +792,17 @@ pub fn create_account_and_delegate_stake(
     lamports: u64,
 ) -> Vec<Instruction> {
     let mut instructions = create_account(from_pubkey, stake_pubkey, authorized, lockup, lamports);
+    // Derive the validator whitelist entry PDA for the vote account
+    let whitelist_entry_pubkey =
+        spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(
+            vote_pubkey,
+        )
+        .expect("Failed to derive validator whitelist entry PDA");
     instructions.push(delegate_stake(
         stake_pubkey,
         &authorized.staker,
         vote_pubkey,
+        &whitelist_entry_pubkey,
     ));
     instructions
 }
@@ -821,10 +828,17 @@ pub fn create_account_with_seed_and_delegate_stake(
         lockup,
         lamports,
     );
+    // Derive the validator whitelist entry PDA for the vote account
+    let whitelist_entry_pubkey =
+        spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(
+            vote_pubkey,
+        )
+        .expect("Failed to derive validator whitelist entry PDA");
     instructions.push(delegate_stake(
         stake_pubkey,
         &authorized.staker,
         vote_pubkey,
+        &whitelist_entry_pubkey,
     ));
     instructions
 }
@@ -953,12 +967,15 @@ pub fn delegate_stake(
     stake_pubkey: &Pubkey,
     authorized_pubkey: &Pubkey,
     vote_pubkey: &Pubkey,
+    whitelist_entry_pubkey: &Pubkey,
 ) -> Instruction {
     let account_metas = vec![
         AccountMeta::new(*stake_pubkey, false),
         AccountMeta::new_readonly(*vote_pubkey, false),
         AccountMeta::new_readonly(CLOCK_ID, false),
         AccountMeta::new_readonly(STAKE_HISTORY_ID, false),
+        // Validator whitelist entry PDA for vote account
+        AccountMeta::new_readonly(*whitelist_entry_pubkey, false),
         // For backwards compatibility we pass the stake config, although this account is unused
         AccountMeta::new_readonly(config::ID, false),
         AccountMeta::new_readonly(*authorized_pubkey, true),

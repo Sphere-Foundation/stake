@@ -574,12 +574,9 @@ impl StakeInterface {
                     minimum_delegation,
                 );
 
-                // Create instruction and replace stake_config with whitelist entry
-                let mut instruction = instruction::delegate_stake(&STAKE_ACCOUNT_BLACK, &STAKER_BLACK, &VOTE_ACCOUNT_RED);
+                // Create instruction with whitelist entry
                 let whitelist_entry_pubkey = spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(&VOTE_ACCOUNT_RED).unwrap();
-                // Replace account at index 4 (stake_config) with whitelist entry
-                instruction.accounts[4].pubkey = whitelist_entry_pubkey;
-                instruction
+                instruction::delegate_stake(&STAKE_ACCOUNT_BLACK, &STAKER_BLACK, &VOTE_ACCOUNT_RED, &whitelist_entry_pubkey)
             }
             Self::Split {
                 lockup_state,

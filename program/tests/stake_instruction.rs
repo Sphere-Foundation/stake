@@ -437,6 +437,7 @@ fn test_stake_process_instruction() {
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
             &invalid_vote_state_pubkey(),
+            &Pubkey::new_unique(), // Invalid whitelist entry
         ),
         Err(ProgramError::Custom(2863311387)),
     );
@@ -6945,6 +6946,7 @@ fn test_stake_process_instruction_with_epoch_rewards_active() {
             &Pubkey::new_unique(),
             &Pubkey::new_unique(),
             &invalid_vote_state_pubkey(),
+            &Pubkey::new_unique(), // Invalid whitelist entry
         ),
         Err(StakeError::EpochRewardsActive.into()),
     );
