@@ -38,11 +38,8 @@ pub fn delegate_stake_with_whitelist(
     authorized_pubkey: &Pubkey,
     vote_pubkey: &Pubkey,
 ) -> Instruction {
-    let mut instruction = ixn::delegate_stake(stake_pubkey, authorized_pubkey, vote_pubkey);
-    // Replace account at index 4 (stake_config) with whitelist entry
     let whitelist_entry_pubkey = get_whitelist_entry_pubkey(vote_pubkey).unwrap();
-    instruction.accounts[4].pubkey = whitelist_entry_pubkey;
-    instruction
+    ixn::delegate_stake(stake_pubkey, authorized_pubkey, vote_pubkey, &whitelist_entry_pubkey)
 }
 
 pub fn program_test() -> ProgramTest {
