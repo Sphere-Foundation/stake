@@ -18,12 +18,6 @@ pub use instruction_builders::{
     delegate_stake,
 };
 
-#[cfg(feature = "helpers")]
-pub use helpers::genesis::{
-    add_validator_whitelist_account_to_genesis_config,
-    add_validator_whitelist_entry_to_genesis_config,
-};
-
 solana_pubkey::declare_id!("Stake11111111111111111111111111111111111111");
 
 // feature_set::reduce_stake_warmup_cooldown changed the warmup/cooldown from

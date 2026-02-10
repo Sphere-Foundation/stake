@@ -13,6 +13,8 @@ pub mod state;
 #[cfg(feature = "sysvar")]
 pub mod sysvar;
 pub mod tools;
+#[cfg(feature = "helpers")]
+pub mod helpers;
 
 #[cfg(feature = "codama")]
 use codama_macros::codama;
