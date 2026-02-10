@@ -959,6 +959,12 @@ pub fn delegate_stake(
         AccountMeta::new_readonly(*vote_pubkey, false),
         AccountMeta::new_readonly(CLOCK_ID, false),
         AccountMeta::new_readonly(STAKE_HISTORY_ID, false),
+        // Validator whitelist entry PDA for vote account
+        AccountMeta::new_readonly(
+            spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(vote_pubkey)
+                .expect("Failed to derive validator whitelist entry PDA"),
+            false,
+        ),
         // For backwards compatibility we pass the stake config, although this account is unused
         AccountMeta::new_readonly(config::ID, false),
         AccountMeta::new_readonly(*authorized_pubkey, true),
