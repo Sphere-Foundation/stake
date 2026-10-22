@@ -18,6 +18,9 @@ pub fn add_validator_whitelist_account_to_genesis_config(
 ) {
     let data_size = ValidatorWhitelistAccount::SIZE_OF;
 
+    // `lamports_per_byte_year` is deprecated in solana-rent 3.1 (renamed in
+    // v4); there is no replacement accessor in 3.x, so read it directly.
+    #[allow(deprecated)]
     let non_zero_rent = match genesis_config.rent.lamports_per_byte_year {
         0 => &Rent::default(),
         _ => &genesis_config.rent,
@@ -65,6 +68,9 @@ pub fn add_validator_whitelist_entry_to_genesis_config(
     }
     .pack();
 
+    // `lamports_per_byte_year` is deprecated in solana-rent 3.1 (renamed in
+    // v4); there is no replacement accessor in 3.x, so read it directly.
+    #[allow(deprecated)]
     let non_zero_rent = match genesis_config.rent.lamports_per_byte_year {
         0 => &Rent::default(),
         _ => &genesis_config.rent,

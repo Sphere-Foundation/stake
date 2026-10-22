@@ -136,13 +136,13 @@ fn create_whitelist_entry_account(vote_address: &Pubkey) -> (Pubkey, Account) {
 
     let lamports = Rent::default().minimum_balance(<ValidatorWhitelistEntry as SizeOf>::SIZE_OF);
 
-    let account = Account::create(
+    let account = Account {
         lamports,
-        data.to_vec(),
-        spherenet_validator_whitelist_interface::program_solana::id(),
-        false,
-        u64::MAX,
-    );
+        data: data.to_vec(),
+        owner: spherenet_validator_whitelist_interface::program_solana::id(),
+        executable: false,
+        rent_epoch: u64::MAX,
+    };
 
     (entry_pubkey, account)
 }
@@ -202,13 +202,13 @@ impl Env {
         let vote_rent_exemption = Rent::default().minimum_balance(VoteStateV4::size_of());
         let vote_state_versions = VoteStateVersions::new_v4(VoteStateV4::default());
         let vote_data = bincode::serialize(&vote_state_versions).unwrap();
-        let vote_account = Account::create(
-            vote_rent_exemption,
-            vote_data,
-            vote_program::id(),
-            false,
-            u64::MAX,
-        );
+        let vote_account = Account {
+            lamports: vote_rent_exemption,
+            data: vote_data,
+            owner: vote_program::id(),
+            executable: false,
+            rent_epoch: u64::MAX,
+        };
         base_accounts.insert(VOTE_ACCOUNT_RED, vote_account.clone());
         base_accounts.insert(VOTE_ACCOUNT_BLUE, vote_account);
 
@@ -221,13 +221,13 @@ impl Env {
         }
         let vote_state_versions = VoteStateVersions::new_v4(reference_vote_state);
         let vote_data = bincode::serialize(&vote_state_versions).unwrap();
-        let vote_account = Account::create(
-            vote_rent_exemption,
-            vote_data,
-            vote_program::id(),
-            false,
-            u64::MAX,
-        );
+        let vote_account = Account {
+            lamports: vote_rent_exemption,
+            data: vote_data,
+            owner: vote_program::id(),
+            executable: false,
+            rent_epoch: u64::MAX,
+        };
         base_accounts.insert(VOTE_ACCOUNT_GOLD, vote_account);
 
         // create whitelist entries for all vote accounts
@@ -242,13 +242,13 @@ impl Env {
         base_accounts.insert(whitelist_gold, whitelist_gold_account);
 
         // create two blank stake accounts
-        let stake_account = Account::create(
-            STAKE_RENT_EXEMPTION,
-            vec![0; StakeStateV2::size_of()],
-            id(),
-            false,
-            u64::MAX,
-        );
+        let stake_account = Account {
+            lamports: STAKE_RENT_EXEMPTION,
+            data: vec![0; StakeStateV2::size_of()],
+            owner: id(),
+            executable: false,
+            rent_epoch: u64::MAX,
+        };
         base_accounts.insert(STAKE_ACCOUNT_BLACK, stake_account.clone());
         base_accounts.insert(STAKE_ACCOUNT_WHITE, stake_account);
 
@@ -1156,7 +1156,13 @@ fn test_no_use_dealloc() {
                     .get(&stake_address)
                     .unwrap_or_else(|| env.base_accounts.get(&stake_address).unwrap())
                     .lamports();
-                let stake_account = Account::create(lamports, vec![], id(), false, u64::MAX);
+                let stake_account = Account {
+                    lamports,
+                    data: vec![],
+                    owner: id(),
+                    executable: false,
+                    rent_epoch: u64::MAX,
+                };
                 env.override_accounts.insert(stake_address, stake_account);
 
                 if is_withdraw {

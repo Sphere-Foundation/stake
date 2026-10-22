@@ -274,7 +274,13 @@ fn get_active_stake_for_tests(
 }
 
 fn create_empty_stake_history_for_test() -> AccountSharedData {
-    AccountSharedData::create(1, vec![0; 8], solana_sdk_ids::sysvar::id(), false, u64::MAX)
+    AccountSharedData::from(Account {
+        lamports: 1,
+        data: vec![0; 8],
+        owner: solana_sdk_ids::sysvar::id(),
+        executable: false,
+        rent_epoch: u64::MAX,
+    })
 }
 
 fn new_stake_history_entry<'a, I>(
@@ -1069,6 +1075,7 @@ fn test_stake_checked_instructions() {
 }
 
 #[test]
+#[allow(deprecated)] // builds `Rent` with `lamports_per_byte_year`
 fn test_stake_initialize() {
     let mollusk = mollusk_bpf();
 
@@ -2247,6 +2254,7 @@ fn test_redelegate_consider_balance_changes() {
 }
 
 #[test]
+#[allow(deprecated)] // builds `Rent` with `lamports_per_byte_year`
 fn test_split() {
     let mollusk = mollusk_bpf();
 
