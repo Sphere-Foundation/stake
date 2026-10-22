@@ -10,6 +10,7 @@ fn
 IDL
 lamports
 mergeable
+PDA
 pubkey
 pubkeys
 redelegate
@@ -24,5 +25,7 @@ undelegate
 undelegated
 unstake
 unstaked
+validator
 warmup
+whitelist
 withdrawer
