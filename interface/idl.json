@@ -1843,10 +1843,10 @@
       }
     ],
     "kind": "programNode",
-    "name": "solanaStakeInterface",
+    "name": "spherenetStakeInterface",
     "pdas": [],
     "publicKey": "Stake11111111111111111111111111111111111111",
-    "version": "2.0.2"
+    "version": "0.2.2"
   },
   "standard": "codama",
   "version": "1.0.0"

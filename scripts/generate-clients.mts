@@ -14,7 +14,7 @@ const codama = c.createFromRoot(idl);
 // Rename the program.
 codama.update(
   c.updateProgramsVisitor({
-    solanaStakeInterface: { name: 'stake' },
+    spherenetStakeInterface: { name: 'stake' },
   })
 );
 
