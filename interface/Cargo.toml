@@ -45,6 +45,11 @@ solana-signer = { version = "3.0.0", optional = true }
 [target.'cfg(not(target_os = "solana"))'.dependencies]
 serde_json = { version = "1.0", optional = true }
 
+# solana-program (via spherenet-validator-whitelist-interface) and solana-keypair
+# pull in getrandom 0.2, which needs its `js` backend on wasm32-unknown-unknown.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
 [dev-dependencies]
 anyhow = "1"
 assert_matches = "1.5.0"

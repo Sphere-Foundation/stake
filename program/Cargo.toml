@@ -35,6 +35,11 @@ solana-keypair = { version = "3.0.0", optional = true }
 solana-signer = { version = "3.0.0", optional = true }
 solana-instruction = { version = "3.0.0", optional = true }
 
+# solana-program (via spherenet-validator-whitelist-interface) and solana-keypair
+# pull in getrandom 0.2, which needs its `js` backend on wasm32-unknown-unknown.
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+
 [dev-dependencies]
 agave-feature-set = "3.0.0"
 arbitrary = { version = "1.4.2", features = ["derive"] }
