@@ -1,4 +1,4 @@
-RUST_TOOLCHAIN_NIGHTLY = nightly-2025-02-16
+RUST_TOOLCHAIN_NIGHTLY = nightly-2025-09-18
 SOLANA_CLI_VERSION = 3.0.0
 
 nightly = +${RUST_TOOLCHAIN_NIGHTLY}
@@ -55,8 +55,10 @@ format-rust:
 build-sbf-%:
 	cargo build-sbf --manifest-path $(call make-path,$*)/Cargo.toml $(ARGS)
 
+# getrandom 0.3 (via solana-frozen-abi under `--all-features`) needs this cfg to
+# select its wasm-bindgen backend on wasm32-unknown-unknown.
 build-wasm-%:
-	cargo $(nightly) build --target wasm32-unknown-unknown --manifest-path $(call make-path,$*)/Cargo.toml --all-features $(ARGS)
+	RUSTFLAGS='--cfg getrandom_backend="wasm_js"' cargo $(nightly) build --target wasm32-unknown-unknown --manifest-path $(call make-path,$*)/Cargo.toml --all-features $(ARGS)
 
 build-doc-%:
 	RUSTDOCFLAGS="--cfg docsrs -D warnings" cargo $(nightly) doc --all-features --no-deps --manifest-path $(call make-path,$*)/Cargo.toml $(ARGS)

@@ -59,7 +59,21 @@ pub fn program_test_without_features(feature_ids: &[Pubkey]) -> ProgramTest {
         program_test.deactivate_feature(*feature_id);
     }
 
-    program_test.add_upgradeable_program_to_genesis("spherenet_stake_program", &id());
+    // `ProgramTest::start` stores its bundled core BPF stake program at the
+    // stake program ID after genesis, so `add_upgradeable_program_to_genesis`
+    // would be overwritten by upstream's stake program. Accounts added with
+    // `add_account` are stored after that, so register our build that way.
+    let elf = read_file(
+        find_file("spherenet_stake_program.so")
+            .expect("spherenet_stake_program.so not found; run `make build-sbf-program`"),
+    );
+    for (address, account) in solana_program_binaries::bpf_loader_upgradeable_program_accounts(
+        &id(),
+        &elf,
+        &Rent::default(),
+    ) {
+        program_test.add_account(address, account);
+    }
 
     program_test
 }
@@ -375,8 +389,10 @@ pub async fn process_instruction<T: Signers + ?Sized>(
     instruction: &Instruction,
     additional_signers: &T,
 ) -> ProgramResult {
-    let mut transaction =
-        Transaction::new_with_payer(&[instruction.clone()], Some(&context.payer.pubkey()));
+    let mut transaction = Transaction::new_with_payer(
+        std::slice::from_ref(instruction),
+        Some(&context.payer.pubkey()),
+    );
 
     transaction.partial_sign(&[&context.payer], context.last_blockhash);
     transaction.sign(additional_signers, context.last_blockhash);
