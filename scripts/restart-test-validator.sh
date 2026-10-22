@@ -7,7 +7,7 @@ cd "${src_root}"
 ARGS=(
   -r
   -q
-  --bpf-program Stake11111111111111111111111111111111111111 ./target/deploy/solana_stake_program.so
+  --bpf-program Stake11111111111111111111111111111111111111 ./target/deploy/spherenet_stake_program.so
 )
 PORT=8899
 PID=$(lsof -t -i:$PORT)
