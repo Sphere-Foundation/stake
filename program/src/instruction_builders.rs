@@ -10,6 +10,7 @@
 
 use {
     solana_instruction::{AccountMeta, Instruction},
+    solana_pubkey::Pubkey,
     spherenet_stake_interface::{
         instruction::{create_account, create_account_with_seed, StakeInstruction},
         program::ID,
@@ -17,7 +18,6 @@ use {
     },
     spherenet_validator_whitelist_interface::program_solana::ID as WHITELIST_PROGRAM_ID,
 };
-use solana_pubkey::Pubkey;
 
 // Inline some constants to avoid dependencies.
 //

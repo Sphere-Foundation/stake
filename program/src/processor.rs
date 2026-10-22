@@ -7,6 +7,9 @@ use {
     solana_program_error::{ProgramError, ProgramResult},
     solana_pubkey::Pubkey,
     solana_rent::Rent,
+    solana_sysvar::{epoch_rewards::EpochRewards, Sysvar},
+    solana_sysvar_id::SysvarId,
+    solana_vote_interface::{program as solana_vote_program, state::VoteStateV4},
     spherenet_stake_interface::{
         error::StakeError,
         instruction::{
@@ -18,9 +21,6 @@ use {
         sysvar::stake_history::StakeHistorySysvar,
         tools::{acceptable_reference_epoch_credits, eligible_for_deactivate_delinquent},
     },
-    solana_sysvar::{epoch_rewards::EpochRewards, Sysvar},
-    solana_sysvar_id::SysvarId,
-    solana_vote_interface::{program as solana_vote_program, state::VoteStateV4},
     spherenet_validator_whitelist_interface::onchain::WhitelistEntryInformation,
     std::{collections::HashSet, mem::MaybeUninit},
 };
@@ -1263,7 +1263,9 @@ impl Processor {
                 delisted_vote_account_info.key,
             )
             .map_err(|e| match e {
-                solana_instruction_error::InstructionError::Custom(code) => ProgramError::Custom(code),
+                solana_instruction_error::InstructionError::Custom(code) => {
+                    ProgramError::Custom(code)
+                }
                 _ => ProgramError::InvalidInstructionData,
             })?;
 
@@ -1299,8 +1301,10 @@ impl Processor {
                     &clock,
                 )
             }
-            owner if owner == spherenet_validator_whitelist_interface::program_solana::id()
-                || owner == solana_sdk_ids::system_program::id() => {
+            owner
+                if owner == spherenet_validator_whitelist_interface::program_solana::id()
+                    || owner == solana_sdk_ids::system_program::id() =>
+            {
                 // Delisted delinquent: whitelist entry (active or tombstone)
                 Self::deactivate_delisted_delinquent(
                     stake_account_info,

@@ -12,18 +12,18 @@ use {
     solana_rent::Rent,
     solana_sdk_ids::system_program,
     solana_signer::Signer,
+    solana_system_interface::instruction as system_instruction,
+    solana_transaction::{Signers, Transaction, TransactionError},
+    solana_vote_interface::{
+        instruction as vote_instruction,
+        state::{VoteInit, VoteStateV4},
+    },
     spherenet_stake_interface::{
         error::StakeError,
         instruction::{self as ixn, LockupArgs},
         program::id,
         stake_history::StakeHistory,
         state::{Authorized, Delegation, Lockup, Meta, Stake, StakeAuthorize, StakeStateV2},
-    },
-    solana_system_interface::instruction as system_instruction,
-    solana_transaction::{Signers, Transaction, TransactionError},
-    solana_vote_interface::{
-        instruction as vote_instruction,
-        state::{VoteInit, VoteStateV4},
     },
     spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey,
     test_case::{test_case, test_matrix},
@@ -39,7 +39,12 @@ pub fn delegate_stake_with_whitelist(
     vote_pubkey: &Pubkey,
 ) -> Instruction {
     let whitelist_entry_pubkey = get_whitelist_entry_pubkey(vote_pubkey).unwrap();
-    ixn::delegate_stake(stake_pubkey, authorized_pubkey, vote_pubkey, &whitelist_entry_pubkey)
+    ixn::delegate_stake(
+        stake_pubkey,
+        authorized_pubkey,
+        vote_pubkey,
+        &whitelist_entry_pubkey,
+    )
 }
 
 pub fn program_test() -> ProgramTest {
@@ -815,7 +820,8 @@ async fn program_test_stake_delegate() {
 
     let stake =
         create_independent_stake_account(&mut context, &authorized, minimum_delegation).await;
-    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+    let instruction =
+        delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
 
     process_instruction_test_missing_signers(&mut context, &instruction, &vec![&staker_keypair])
         .await;
@@ -839,7 +845,8 @@ async fn program_test_stake_delegate() {
 
     // verify that delegate fails as stake is active and not deactivating
     advance_epoch(&mut context).await;
-    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+    let instruction =
+        delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
     let e = process_instruction(&mut context, &instruction, &vec![&staker_keypair])
         .await
         .unwrap_err();
@@ -860,7 +867,8 @@ async fn program_test_stake_delegate() {
 
     // verify that delegate succeeds to same vote account when stake is deactivating
     refresh_blockhash(&mut context).await;
-    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+    let instruction =
+        delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
     process_instruction(&mut context, &instruction, &vec![&staker_keypair])
         .await
         .unwrap();
@@ -1002,7 +1010,8 @@ impl StakeLifecycle {
         }
 
         if self >= StakeLifecycle::Activating {
-            let instruction = delegate_stake_with_whitelist(&stake, &staker_keypair.pubkey(), vote_account);
+            let instruction =
+                delegate_stake_with_whitelist(&stake, &staker_keypair.pubkey(), vote_account);
             process_instruction(context, &instruction, &vec![staker_keypair])
                 .await
                 .unwrap();
@@ -1400,7 +1409,8 @@ async fn program_test_deactivate(activate: bool) {
     assert_eq!(e, ProgramError::InvalidAccountData);
 
     // delegate
-    let instruction = delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
+    let instruction =
+        delegate_stake_with_whitelist(&stake, &staker, &accounts.vote_account.pubkey());
     process_instruction(&mut context, &instruction, &vec![&staker_keypair])
         .await
         .unwrap();

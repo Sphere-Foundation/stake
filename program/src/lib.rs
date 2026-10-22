@@ -14,8 +14,7 @@ pub mod instruction_builders;
 // Re-export commonly used functions when helpers feature enabled
 #[cfg(feature = "helpers")]
 pub use instruction_builders::{
-    create_account_and_delegate_stake, create_account_with_seed_and_delegate_stake,
-    delegate_stake,
+    create_account_and_delegate_stake, create_account_with_seed_and_delegate_stake, delegate_stake,
 };
 
 solana_pubkey::declare_id!("Stake11111111111111111111111111111111111111");

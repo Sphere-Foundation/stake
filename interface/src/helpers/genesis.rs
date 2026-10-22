@@ -1,14 +1,15 @@
-use solana_keypair::Keypair;
-use solana_pubkey::Pubkey;
-use solana_rent::Rent;
-use solana_signer::Signer;
-use spherenet_validator_whitelist_interface::state::{
-    account::ValidatorWhitelistAccount, whitelist_entry::ValidatorWhitelistEntry, AccountState,
-    SizeOf,
+use {
+    solana_account::AccountSharedData,
+    solana_genesis_config::GenesisConfig,
+    solana_keypair::Keypair,
+    solana_pubkey::Pubkey,
+    solana_rent::Rent,
+    solana_signer::Signer,
+    spherenet_validator_whitelist_interface::state::{
+        account::ValidatorWhitelistAccount, whitelist_entry::ValidatorWhitelistEntry, AccountState,
+        SizeOf,
+    },
 };
-
-use solana_account::AccountSharedData;
-use solana_genesis_config::GenesisConfig;
 
 pub fn add_validator_whitelist_account_to_genesis_config(
     genesis_config: &mut GenesisConfig,

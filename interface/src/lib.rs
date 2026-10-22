@@ -6,6 +6,8 @@
 #[allow(deprecated)]
 pub mod config;
 pub mod error;
+#[cfg(feature = "helpers")]
+pub mod helpers;
 pub mod instruction;
 pub mod stake_flags;
 pub mod stake_history;
@@ -13,8 +15,6 @@ pub mod state;
 #[cfg(feature = "sysvar")]
 pub mod sysvar;
 pub mod tools;
-#[cfg(feature = "helpers")]
-pub mod helpers;
 
 #[cfg(feature = "codama")]
 use codama_macros::codama;

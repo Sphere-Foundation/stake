@@ -14,6 +14,12 @@ use {
     solana_sdk_ids::system_program,
     // Mollusk depends on solana-stake-interface, so we need to use its StakeHistoryEntry for test setup
     solana_stake_interface::stake_history::StakeHistoryEntry,
+    solana_svm_log_collector::LogCollector,
+    solana_sysvar_id::SysvarId,
+    solana_vote_interface::{
+        program as vote_program,
+        state::{VoteStateV4, VoteStateVersions},
+    },
     spherenet_stake_interface::{
         instruction::{self, LockupArgs},
         stake_flags::StakeFlags,
@@ -24,12 +30,6 @@ use {
         },
     },
     spherenet_stake_program::{get_minimum_delegation, id},
-    solana_svm_log_collector::LogCollector,
-    solana_sysvar_id::SysvarId,
-    solana_vote_interface::{
-        program as vote_program,
-        state::{VoteStateV4, VoteStateVersions},
-    },
     spherenet_validator_whitelist_interface::state::{
         whitelist_entry::ValidatorWhitelistEntry, AccountState, SizeOf,
     },
@@ -231,9 +231,12 @@ impl Env {
         base_accounts.insert(VOTE_ACCOUNT_GOLD, vote_account);
 
         // create whitelist entries for all vote accounts
-        let (whitelist_red, whitelist_red_account) = create_whitelist_entry_account(&VOTE_ACCOUNT_RED);
-        let (whitelist_blue, whitelist_blue_account) = create_whitelist_entry_account(&VOTE_ACCOUNT_BLUE);
-        let (whitelist_gold, whitelist_gold_account) = create_whitelist_entry_account(&VOTE_ACCOUNT_GOLD);
+        let (whitelist_red, whitelist_red_account) =
+            create_whitelist_entry_account(&VOTE_ACCOUNT_RED);
+        let (whitelist_blue, whitelist_blue_account) =
+            create_whitelist_entry_account(&VOTE_ACCOUNT_BLUE);
+        let (whitelist_gold, whitelist_gold_account) =
+            create_whitelist_entry_account(&VOTE_ACCOUNT_GOLD);
         base_accounts.insert(whitelist_red, whitelist_red_account);
         base_accounts.insert(whitelist_blue, whitelist_blue_account);
         base_accounts.insert(whitelist_gold, whitelist_gold_account);
@@ -576,7 +579,12 @@ impl StakeInterface {
 
                 // Create instruction with whitelist entry
                 let whitelist_entry_pubkey = spherenet_validator_whitelist_interface::state::whitelist_entry::get_whitelist_entry_pubkey(&VOTE_ACCOUNT_RED).unwrap();
-                instruction::delegate_stake(&STAKE_ACCOUNT_BLACK, &STAKER_BLACK, &VOTE_ACCOUNT_RED, &whitelist_entry_pubkey)
+                instruction::delegate_stake(
+                    &STAKE_ACCOUNT_BLACK,
+                    &STAKER_BLACK,
+                    &VOTE_ACCOUNT_RED,
+                    &whitelist_entry_pubkey,
+                )
             }
             Self::Split {
                 lockup_state,
