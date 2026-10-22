@@ -19,7 +19,7 @@ edition = "2021"
 spherenet-stake-interface = { version = "^0", path = "interface" }
 
 [workspace.metadata.cli]
-solana = "3.0.0"
+solana = "3.1.14"
 
 [workspace.lints.rust.unexpected_cfgs]
 level = "warn"
