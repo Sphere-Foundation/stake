@@ -55,7 +55,11 @@ jobs:
 
   main:
     needs: set_env
-    uses: solana-program/actions/.github/workflows/publish-js.yml@main
+    # Only publish from the canonical repository on `main`.
+    if: github.repository == 'Sphere-Foundation/stake' && github.ref == 'refs/heads/main'
+    # Pinned to a reviewed commit of the upstream reusable workflow; Dependabot
+    # (github-actions ecosystem) proposes bumps.
+    uses: solana-program/actions/.github/workflows/publish-js.yml@2db12a00105e5b260ac43746b69df1658a5dca24 # main 2026-10-02
     with:
       sbpf-program-packages: "program"
       solana-cli-version: ${{ needs.set_env.outputs.SOLANA_CLI_VERSION }}
